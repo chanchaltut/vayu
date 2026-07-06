@@ -6,6 +6,10 @@ import { BigQuery } from "@google-cloud/bigquery";
 
 const bq = new BigQuery({
   projectId: process.env.GOOGLE_CLOUD_PROJECT,
+  credentials: {
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  },
 });
 
 export const DATASET = process.env.BIGQUERY_DATASET || "vayu";
