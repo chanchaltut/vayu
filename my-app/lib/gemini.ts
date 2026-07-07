@@ -29,7 +29,7 @@ const safetySettings = [
 
 // ── Text-only model (for forecast, fusion reasoning) ─────────────────────────
 export const geminiPro: GenerativeModel = genAI.getGenerativeModel({
-  model: "gemini-1.5-pro",
+  model: "gemini-2.5-flash",
   safetySettings,
   generationConfig: {
     responseMimeType: "application/json",
@@ -39,7 +39,7 @@ export const geminiPro: GenerativeModel = genAI.getGenerativeModel({
 
 // ── Vision model (for citizen photo smoke detection) ─────────────────────────
 export const geminiVision: GenerativeModel = genAI.getGenerativeModel({
-  model: "gemini-1.5-pro",
+  model: "gemini-2.5-flash",
   safetySettings,
   generationConfig: {
     responseMimeType: "application/json",
