@@ -14,7 +14,7 @@
     "start": "next start",
     "start:backend": "node api/server.js",
     "lint": "eslint",
-    "detect-hotspots": "npx ts-node --esm bigquery-gemini-fusion/hotspotDetector.ts"
+    "detect-hotspots": "curl -X POST http://localhost:3000/api/detect-hotspots"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.3.1",
@@ -41,6 +41,7 @@
     "eslint-config-next": "^16.2.10",
     "nodemon": "^3.1.14",
     "tailwindcss": "^4.1.12",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
     "uuid": "^14.0.1"
   }

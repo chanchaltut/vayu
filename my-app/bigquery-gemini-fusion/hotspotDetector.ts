@@ -41,7 +41,7 @@ export const detectAndSaveHotspots = async (): Promise<DetectionSummary> => {
 
   // ── Step 3: Run Gemini fusion on each cluster ────────────────────────────
   let hotspotsDetected = 0;
-  let hotspotsSaved    = 0;
+  let hotspotsSaved = 0;
 
   for (const cluster of clusters) {
     try {
@@ -54,18 +54,18 @@ export const detectAndSaveHotspots = async (): Promise<DetectionSummary> => {
       // ── Step 4: Save confirmed hotspots to BigQuery ──────────────────────
       if (fusionResult.is_hotspot) {
         const hotspot = {
-          id:                uuidv4(),
-          detected_at:       new Date().toISOString(),
-          lat:               cluster.lat,
-          lon:               cluster.lon,
-          severity:          fusionResult.severity,
-          confidence:        fusionResult.confidence,
-          avg_temperature:   fusionResult.avg_temperature,
-          avg_aqi:           fusionResult.avg_aqi,
+          id: uuidv4(),
+          detected_at: new Date().toISOString(),
+          lat: cluster.lat,
+          lon: cluster.lon,
+          severity: fusionResult.severity,
+          confidence: fusionResult.confidence,
+          avg_temperature: fusionResult.avg_temperature,
+          avg_aqi: fusionResult.avg_aqi,
           predicted_aqi_24h: fusionResult.predicted_aqi_24h,
-          action:            fusionResult.action,
-          gemini_reasoning:  fusionResult.reasoning,
-          reading_count:     fusionResult.reading_count,
+          action: fusionResult.action,
+          gemini_reasoning: fusionResult.reasoning,
+          reading_count: fusionResult.reading_count,
         };
 
         await writeHotspot(hotspot);
@@ -120,12 +120,12 @@ const groupIntoClusters = (
     // Snap lat/lon to the nearest grid cell
     const gridLat = Math.round(reading.lat / gridSize) * gridSize;
     const gridLon = Math.round(reading.lon / gridSize) * gridSize;
-    const key     = `${gridLat.toFixed(4)}_${gridLon.toFixed(4)}`;
+    const key = `${gridLat.toFixed(4)}_${gridLon.toFixed(4)}`;
 
     if (!clusterMap[key]) {
       clusterMap[key] = {
-        lat:      gridLat,
-        lon:      gridLon,
+        lat: gridLat,
+        lon: gridLon,
         readings: [],
       };
     }

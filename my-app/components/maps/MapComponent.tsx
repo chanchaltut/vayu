@@ -7,7 +7,7 @@ export default function MapComponent() {
 
     useEffect(() => {
         setOptions({
-            key: process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY!,
+            key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
             v: 'weekly',
         });
 
