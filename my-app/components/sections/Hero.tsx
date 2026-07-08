@@ -73,6 +73,29 @@ function getWeatherDescription(code: number): string {
   return "partly cloudy";
 }
 
+// Reverse geocodes coordinates to a localized name
+const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+    );
+    const data = await res.json();
+    const addr = data?.address;
+    const place =
+      addr?.suburb ||
+      addr?.town ||
+      addr?.village ||
+      addr?.city_district ||
+      addr?.city ||
+      addr?.county ||
+      addr?.state ||
+      "India";
+    return `${place}, India`;
+  } catch (e) {
+    return "Kolkata, India";
+  }
+};
+
 export default function Hero() {
   const [temperature, setTemperature] = useState(27);
   const [aqi, setAqi] = useState(30);
@@ -102,10 +125,10 @@ export default function Hero() {
     }
   }, []);
 
-  // 2. Geolocation cascade (IP location, Photo upload, Hardware deployed, Browser Geolocation fallback)
+  // 2. Geolocation cascade with automatic reverse-geocoding for hardware/cache coords
   useEffect(() => {
     const resolveLocation = async () => {
-      // Priority 1: IP Geolocation (via ipapi.co) — fast, automatic, captures true city like Kalyani
+      // Priority 1: IP Geolocation (via ipapi.co)
       try {
         const res = await fetch("https://ipapi.co/json/");
         const data = await res.json();
@@ -114,10 +137,10 @@ export default function Hero() {
           const lon = data.longitude;
           setCoords({ lat, lon });
           setLocationName(`${data.city || "Kalyani"}, ${data.country_name || "India"}`);
-          return; // geolocated successfully via IP, exit cascade
+          return;
         }
       } catch (e) {
-        console.error("IP Geolocation failed, fallback active:", e);
+        console.error("IP Geolocation failed, trying fallback cascade:", e);
       }
 
       // Priority 2: Check local storage for last uploaded photo coordinates
@@ -127,20 +150,22 @@ export default function Hero() {
           const parsed = JSON.parse(cachedCoords);
           if (parsed.lat && parsed.lon) {
             setCoords({ lat: parsed.lat, lon: parsed.lon });
-            setLocationName(parsed.city || "Reported Location");
+            const name = await reverseGeocode(parsed.lat, parsed.lon);
+            setLocationName(name);
             return;
           }
         } catch (e) {}
       }
 
-      // Priority 3: Fetch hardware coordinates from latest sensor reading
+      // Priority 3: Fetch latest hardware coordinates from API
       try {
         const res = await fetch("/api/sensors");
         const json = await res.json();
         const latest = json?.data?.readings?.[0];
         if (latest && latest.lat && latest.lon) {
           setCoords({ lat: latest.lat, lon: latest.lon });
-          setLocationName(latest.source === "satellite" ? "Kolkata, India" : "Hardware Deployed");
+          const name = await reverseGeocode(latest.lat, latest.lon);
+          setLocationName(name);
           return;
         }
       } catch (e) {}
@@ -152,18 +177,8 @@ export default function Hero() {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             setCoords({ lat, lon });
-            
-            try {
-              const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
-              );
-              const data = await res.json();
-              const addr = data?.address;
-              const place = addr?.suburb || addr?.town || addr?.village || addr?.city_district || addr?.city || addr?.county || addr?.state || "India";
-              setLocationName(`${place}, India`);
-            } catch (e) {
-              setLocationName("Your Location");
-            }
+            const name = await reverseGeocode(lat, lon);
+            setLocationName(name);
           },
           () => {
             // Default final fallback
@@ -298,7 +313,7 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* --- CENTER FLOAT: Climate Illustration (Smooth transitions + soft floating animation) --- */}
+        {/* --- CENTER FLOAT: Climate Illustration --- */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Image
             src={activeTheme.illustration}
