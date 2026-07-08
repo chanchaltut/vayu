@@ -21,22 +21,22 @@ interface WeatherTheme {
 
 const THEMES: Record<string, WeatherTheme> = {
   clear: {
-    bg: "linear-gradient(117.3deg, rgba(252, 140, 60, 0.73) 9.06%, rgba(255, 196, 142, 0.72) 31.05%, rgba(253, 223, 183, 0.79) 47.47%, rgba(228, 181, 137, 0.86) 64.62%, rgba(252, 140, 60, 0.83) 93.42%)",
+    bg: "linear-gradient(117.3deg, rgba(252, 140, 60, 0.8) 9.06%, rgba(255, 196, 142, 0.75) 31.05%, rgba(253, 223, 183, 0.8) 47.47%, rgba(228, 181, 137, 0.85) 64.62%, rgba(252, 140, 60, 0.9) 93.42%)",
     grid: "rgba(255, 142, 61, 0.35)",
     illustration: "/assets/SunCloud.png",
   },
   rainy: {
-    bg: "linear-gradient(117.3deg, rgba(58, 96, 115, 0.85) 9.06%, rgba(58, 123, 213, 0.8) 47.47%, rgba(44, 62, 80, 0.9) 100%)",
+    bg: "linear-gradient(135deg, #2b5876 0%, #4e4376 100%)",
     grid: "rgba(135, 206, 250, 0.35)",
     illustration: "/assets/RainCloud.png",
   },
   stormy: {
-    bg: "linear-gradient(117.3deg, rgba(31, 28, 44, 0.9) 9.06%, rgba(146, 141, 171, 0.85) 50%, rgba(75, 19, 79, 0.9) 100%)",
+    bg: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
     grid: "rgba(186, 85, 211, 0.35)",
     illustration: "/assets/ThunderCloud.png",
   },
   snowy: {
-    bg: "linear-gradient(117.3deg, rgba(131, 164, 212, 0.8) 9.06%, rgba(182, 251, 255, 0.85) 50%, rgba(240, 248, 255, 0.9) 100%)",
+    bg: "linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)",
     grid: "rgba(255, 255, 255, 0.5)",
     illustration: "/assets/SnowCloud.png",
   },
@@ -79,7 +79,8 @@ export default function Hero() {
   const [aqiLabel, setAqiLabel] = useState("Air quality data loading...");
   const [weatherDesc, setWeatherDesc] = useState("mainly clear and partly cloudy");
   
-  // Dynamic Climate themes
+  // Theme key state to drive smooth background layers transitions
+  const [themeKey, setThemeKey] = useState<string>("clear");
   const [activeTheme, setActiveTheme] = useState<WeatherTheme>(THEMES.clear);
 
   // Geolocation states
@@ -101,10 +102,50 @@ export default function Hero() {
     }
   }, []);
 
-  // 2. Geolocation cascade (Browser High Accuracy, Cache, Hardware Node, IP Fallback)
+  // 2. Geolocation cascade (IP location, Photo upload, Hardware deployed, Browser Geolocation fallback)
   useEffect(() => {
     const resolveLocation = async () => {
-      // Priority A: Try browser geolocation WITH HIGH ACCURACY ENABLED (fixes Kalyani vs Kolkata ISP routing)
+      // Priority 1: IP Geolocation (via ipapi.co) — fast, automatic, captures true city like Kalyani
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          const lat = data.latitude;
+          const lon = data.longitude;
+          setCoords({ lat, lon });
+          setLocationName(`${data.city || "Kalyani"}, ${data.country_name || "India"}`);
+          return; // geolocated successfully via IP, exit cascade
+        }
+      } catch (e) {
+        console.error("IP Geolocation failed, fallback active:", e);
+      }
+
+      // Priority 2: Check local storage for last uploaded photo coordinates
+      const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
+      if (cachedCoords) {
+        try {
+          const parsed = JSON.parse(cachedCoords);
+          if (parsed.lat && parsed.lon) {
+            setCoords({ lat: parsed.lat, lon: parsed.lon });
+            setLocationName(parsed.city || "Reported Location");
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // Priority 3: Fetch hardware coordinates from latest sensor reading
+      try {
+        const res = await fetch("/api/sensors");
+        const json = await res.json();
+        const latest = json?.data?.readings?.[0];
+        if (latest && latest.lat && latest.lon) {
+          setCoords({ lat: latest.lat, lon: latest.lon });
+          setLocationName(latest.source === "satellite" ? "Kolkata, India" : "Hardware Deployed");
+          return;
+        }
+      } catch (e) {}
+
+      // Priority 4: Browser geolocation with High Accuracy
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
@@ -112,7 +153,6 @@ export default function Hero() {
             const lon = position.coords.longitude;
             setCoords({ lat, lon });
             
-            // Reverse geocode via free Nominatim API with accurate parameters
             try {
               const res = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
@@ -125,52 +165,20 @@ export default function Hero() {
               setLocationName("Your Location");
             }
           },
-          async () => {
-            // Priority B: Check local storage for last uploaded photo coordinates
-            const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
-            if (cachedCoords) {
-              try {
-                const parsed = JSON.parse(cachedCoords);
-                if (parsed.lat && parsed.lon) {
-                  setCoords({ lat: parsed.lat, lon: parsed.lon });
-                  setLocationName(parsed.city || "Reported Location");
-                  return;
-                }
-              } catch (e) {}
-            }
-
-            // Priority C: Fetch hardware coordinates from latest sensor reading
-            try {
-              const res = await fetch("/api/sensors");
-              const json = await res.json();
-              const latest = json?.data?.readings?.[0];
-              if (latest && latest.lat && latest.lon) {
-                setCoords({ lat: latest.lat, lon: latest.lon });
-                setLocationName(latest.source === "satellite" ? "Kolkata, India" : "Hardware Deployed");
-                return;
-              }
-            } catch (e) {}
-
-            // Priority D: IP-based lookup as final fallback
-            try {
-              const res = await fetch("https://ipapi.co/json/");
-              const data = await res.json();
-              if (data.latitude && data.longitude) {
-                setCoords({ lat: data.latitude, lon: data.longitude });
-                setLocationName(`${data.city || "Kalyani"}, ${data.country_name || "India"}`);
-                return;
-              }
-            } catch (e) {}
-
-            // Fallback default
+          () => {
+            // Default final fallback
             setLocationName("Kolkata, India");
+            setCoords({ lat: 22.5726, lon: 88.3639 });
           },
           {
-            enableHighAccuracy: true, // Forces precise GPS/WiFi geolocation over ISP IP routing hubs
+            enableHighAccuracy: true,
             timeout: 5000,
             maximumAge: 0
           }
         );
+      } else {
+        setLocationName("Kolkata, India");
+        setCoords({ lat: 22.5726, lon: 88.3639 });
       }
     };
 
@@ -194,8 +202,9 @@ export default function Hero() {
           setWeatherDesc(getWeatherDescription(code));
           
           // Select visual weather template dynamically
-          const themeKey = getThemeKey(code);
-          setActiveTheme(THEMES[themeKey]);
+          const tKey = getThemeKey(code);
+          setThemeKey(tKey);
+          setActiveTheme(THEMES[tKey]);
         }
 
         // Fetch satellite-derived Air Quality
@@ -225,13 +234,39 @@ export default function Hero() {
 
   return (
     <section 
-      className="relative min-h-screen w-full bg-hero-gradient overflow-hidden flex flex-col transition-all duration-1000"
+      className="relative min-h-screen w-full overflow-hidden flex flex-col"
       style={{
-        "--hero-bg": activeTheme.bg,
         "--grid-color": activeTheme.grid,
       } as React.CSSProperties}
     >
-      <div className="absolute inset-0 bg-grid-pattern pointer-events-none"></div>
+      {/* Absolute background layers with hardware-accelerated transitions to bypass linear-gradient limitation */}
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${
+          themeKey === "clear" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ background: THEMES.clear.bg }}
+      />
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${
+          themeKey === "rainy" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ background: THEMES.rainy.bg }}
+      />
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${
+          themeKey === "stormy" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ background: THEMES.stormy.bg }}
+      />
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${
+          themeKey === "snowy" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ background: THEMES.snowy.bg }}
+      />
+
+      {/* Grid Pattern Overlay */}
+      <div className="absolute inset-0 bg-grid-pattern pointer-events-none" />
 
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-20 left-30 w-10 h-10 bg-white/30 backdrop-blur-sm shadow-[0_0_20px_4px_rgba(255,255,255,0.4)] animate-twinkle" style={{ animationDelay: "0s" }}></div>
@@ -263,7 +298,7 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* --- CENTER FLOAT: Sun Cloud (Remains absolutely positioned) --- */}
+        {/* --- CENTER FLOAT: Climate Illustration (Smooth transitions + soft floating animation) --- */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Image
             src={activeTheme.illustration}
