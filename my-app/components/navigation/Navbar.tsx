@@ -32,6 +32,13 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY]);
 
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <div
       className={`
@@ -53,12 +60,11 @@ export default function Navbar() {
           }
         `}
       >
-        <NavButton label="Home" isScrolled={isScrolled} />
-        <NavButton label="Work" isScrolled={isScrolled} />
-        <NavButton label="Awards" isScrolled={isScrolled} />
-        <NavButton label="Team" isScrolled={isScrolled} />
-        <NavButton label="Prices" isScrolled={isScrolled} />
-        <NavButton label="Contact" isDark={true} isScrolled={isScrolled} />
+        <NavButton label="Home" isScrolled={isScrolled} onClick={() => scrollToSection("home")} />
+        <NavButton label="Report" isScrolled={isScrolled} onClick={() => scrollToSection("report")} />
+        <NavButton label="Detect" isScrolled={isScrolled} onClick={() => scrollToSection("detect")} />
+        <NavButton label="Act" isScrolled={isScrolled} onClick={() => scrollToSection("act")} />
+        <NavButton label="Team" isDark={true} isScrolled={isScrolled} onClick={() => scrollToSection("team")} />
       </nav>
     </div>
   );

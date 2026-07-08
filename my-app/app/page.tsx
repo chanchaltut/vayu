@@ -10,11 +10,11 @@ export default function Home() {
     <main className="flex flex-col w-full min-h-screen relative">
       <Navbar />
 
-      <Hero />
-      <CitizenUpload />
-      <AiPrediction />
-      <Municipality />
-      <Footer />
+      <div id="home"><Hero /></div>
+      <div id="report"><CitizenUpload /></div>
+      <div id="detect"><AiPrediction /></div>
+      <div id="act"><Municipality /></div>
+      <div id="team"><Footer /></div>
     </main>
   );
 }
