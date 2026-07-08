@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import GridBackground from "@/components/backgrounds/GridBackground";
 import SectionHeader from "@/components/texts/SectionHeader";
@@ -8,6 +7,7 @@ import AqiOverviewCard from "../cards/AqiOverviewCard";
 import WeeklyTemperatureCard from "../cards/WeeklyTemperatureCard";
 import HotspotsMapCard from "../cards/HotspotsMapCard";
 import TextDescriptionCard from "../cards/TextDescriptionCard";
+import Toast from "../Toast";
 
 interface Hotspot {
   id: string;
@@ -35,6 +35,11 @@ interface ForecastCard {
   isActive: boolean;
 }
 
+interface Coords {
+  lat: number;
+  lon: number;
+}
+
 function getWeatherIcon(code: number): string {
   if (code === 0 || code === 1 || code === 2 || code === 3) {
     return "/assets/SunCloud.png";
@@ -59,7 +64,12 @@ export default function AiPrediction() {
   const [readings, setReadings] = useState<SensorReading[]>([]);
   const [latestAqi, setLatestAqi] = useState<number | null>(null);
   const [latestTemp, setLatestTemp] = useState<number | null>(null);
+  
+  // Geolocation cascade matching Hero.tsx
+  const [coords, setCoords] = useState<Coords>({ lat: 22.5726, lon: 88.3639 });
   const [isDetecting, setIsDetecting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
   const [forecastCards, setForecastCards] = useState<ForecastCard[]>([
     { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
     { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
@@ -69,6 +79,65 @@ export default function AiPrediction() {
     { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
   ]);
 
+  // 1. Resolve Location Cascade (matching Hero.tsx priorities)
+  useEffect(() => {
+    const resolveLocation = async () => {
+      // Priority 1: IP Geolocation — automatic & captures city like Kalyani
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          setCoords({ lat: data.latitude, lon: data.longitude });
+          return;
+        }
+      } catch (e) {
+        console.error("[PREDICTION-LOC] IP lookup fallback active:", e);
+      }
+
+      // Priority 2: Check local storage cache
+      const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
+      if (cachedCoords) {
+        try {
+          const parsed = JSON.parse(cachedCoords);
+          if (parsed.lat && parsed.lon) {
+            setCoords({ lat: parsed.lat, lon: parsed.lon });
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // Priority 3: Latest hardware node coordinate
+      try {
+        const res = await fetch("/api/sensors");
+        const json = await res.json();
+        const latest = json?.data?.readings?.[0];
+        if (latest && latest.lat && latest.lon) {
+          setCoords({ lat: latest.lat, lon: latest.lon });
+          return;
+        }
+      } catch (e) {}
+
+      // Priority 4: Browser geolocation fallback
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setCoords({
+              lat: position.coords.latitude,
+              lon: position.coords.longitude,
+            });
+          },
+          () => {
+            setCoords({ lat: 22.5726, lon: 88.3639 }); // default Kolkata
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+    };
+
+    resolveLocation();
+  }, []);
+
+  // 2. Fetch hotspots and sensor readings
   const fetchHotspots = async () => {
     try {
       const res = await fetch("/api/hotspots");
@@ -85,52 +154,73 @@ export default function AiPrediction() {
       const json = await res.json();
       const data: SensorReading[] = json?.data?.readings ?? [];
       setReadings(data);
-
-      if (data.length > 0) {
-        setLatestAqi(data[0].aqi);
-        setLatestTemp(
-          data[0].temperature != null ? Math.round(data[0].temperature) : null
-        );
-      }
     } catch (e) {
       console.error("Failed to fetch sensor readings", e);
     }
   };
 
-  const fetchLiveForecast = async () => {
-    try {
-      const res = await fetch(
-        "https://api.open-meteo.com/v1/forecast?latitude=22.5726&longitude=88.3639&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata"
-      );
-      const data = await res.json();
-      const daily = data?.daily;
-      if (!daily?.time) return;
-
-      const mapped: ForecastCard[] = daily.time.slice(0, 6).map((timeStr: string, index: number) => {
-        const date = new Date(timeStr);
-        const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-        const temp = Math.round(daily.temperature_2m_max[index]);
-        const weatherCode = daily.weather_code[index];
-
-        return {
-          day: dayName,
-          icon: getWeatherIcon(weatherCode),
-          temp,
-          isActive: index === 0, // Make today's card active
-        };
-      });
-
-      setForecastCards(mapped);
-    } catch (err) {
-      console.error("Failed to fetch forecast cards", err);
-    }
-  };
-
+  // 3. Fetch weather temperature / AQI for resolved geolocated coordinates
   useEffect(() => {
+    const fetchLocalStats = async () => {
+      try {
+        // Fetch weather
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherJson = await weatherRes.json();
+        if (weatherJson?.current?.temperature_2m != null) {
+          setLatestTemp(Math.round(weatherJson.current.temperature_2m));
+        }
+
+        // Fetch AQI
+        const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&current=us_aqi`;
+        const aqRes = await fetch(aqUrl);
+        const aqJson = await aqRes.json();
+        if (aqJson?.current?.us_aqi != null) {
+          setLatestAqi(aqJson.current.us_aqi);
+        }
+      } catch (err) {
+        console.error("Failed to fetch local stats for prediction section", err);
+      }
+    };
+
     fetchHotspots();
     fetchReadings();
+    fetchLocalStats();
+  }, [coords]);
+
+  // 4. Fetch dynamic weekly weather forecast cards for coordinates
+  useEffect(() => {
+    const fetchLiveForecast = async () => {
+      try {
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata`
+        );
+        const data = await res.json();
+        const daily = data?.daily;
+        if (!daily?.time) return;
+
+        const mapped: ForecastCard[] = daily.time.slice(0, 6).map((timeStr: string, index: number) => {
+          const date = new Date(timeStr);
+          const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+          const temp = Math.round(daily.temperature_2m_max[index]);
+          const weatherCode = daily.weather_code[index];
+
+          return {
+            day: dayName,
+            icon: getWeatherIcon(weatherCode),
+            temp,
+            isActive: index === 0, // Make today's card active
+          };
+        });
+
+        setForecastCards(mapped);
+      } catch (err) {
+        console.error("Failed to fetch forecast cards", err);
+      }
+    };
+
     fetchLiveForecast();
-  }, []);
+  }, [coords]);
 
   const handleDetect = async () => {
     setIsDetecting(true);
@@ -140,10 +230,21 @@ export default function AiPrediction() {
       if (json.success) {
         // Refetch everything to update the views instantly
         await Promise.all([fetchHotspots(), fetchReadings()]);
+        setToast({
+          message: `Hotspot detection complete! Identified ${json.data.hotspots_detected} active cells.`,
+          type: "success",
+        });
       } else {
-        alert("Hotspot detection failed. Make sure you have ingested sensor data first.");
+        setToast({
+          message: "Hotspot detection completed with no new anomalies identified.",
+          type: "error",
+        });
       }
     } catch (err) {
+      setToast({
+        message: "Network error triggering hotspot fusion engine.",
+        type: "error",
+      });
       console.error("Error triggering hotspot detection", err);
     } finally {
       setIsDetecting(false);
@@ -160,6 +261,15 @@ export default function AiPrediction() {
       id="detect"
       className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden"
     >
+      {/* Dynamic Toast Popup */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       {/* Background */}
       <GridBackground />
 
@@ -195,7 +305,11 @@ export default function AiPrediction() {
 
           {/* Right Column */}
           <div className="w-[50%] flex justify-end">
-            <HotspotsMapCard hotspots={hotspots} />
+            <HotspotsMapCard
+              hotspots={hotspots}
+              centerLat={coords.lat}
+              centerLon={coords.lon}
+            />
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState, ChangeEvent } from "react";
+import Toast from "../Toast";
 
 interface AnalysisResult {
   smoke_detected: boolean;
@@ -20,12 +21,15 @@ export default function UploadCard() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Success states & Toasts
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [uploadCompletedCount, setUploadCompletedCount] = useState(0);
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
-    setResult(null);
     setError(null);
   };
 
@@ -59,9 +63,27 @@ export default function UploadCard() {
       const res = await fetch("/api/photos", { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Upload failed");
+      
+      // Save analysis results for user to view
       setResult(json.data);
+      
+      // Increment count, trigger toast, and reset upload area
+      setUploadCompletedCount((prev) => prev + 1);
+      setSelectedFile(null);
+      setPreview(null);
+      setDescription("");
+      
+      setToast({
+        message: "Photo uploaded & Gemini Vision analysis completed!",
+        type: "success",
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const errMsg = err instanceof Error ? err.message : "Something went wrong";
+      setError(errMsg);
+      setToast({
+        message: errMsg,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -79,12 +101,21 @@ export default function UploadCard() {
 
   return (
     <div
-      className="w-150 rounded-4xl p-0.75 shadow-[0_20px_50px_rgba(0,0,0,0.04)]"
+      className="w-150 rounded-4xl p-0.75 shadow-[0_20px_50px_rgba(0,0,0,0.04)] relative"
       style={{
         background:
           "linear-gradient(135deg, #FF3B30 0%, #C200FB 25%, #005AFF 50%, #00D604 80%, #FFCC00 100%)",
       }}
     >
+      {/* Dynamic Toast Popup */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <div className="w-full bg-white rounded-[29px] flex flex-col items-center justify-center gap-6 py-8 px-6">
         {/* Hidden real file input */}
         <input
@@ -151,12 +182,17 @@ export default function UploadCard() {
           </div>
         </div>
 
-        {/* Error */}
+        {/* Status Indicators (Error / Submission Count) */}
         {error && <p className="text-red-500 text-[14px] font-medium">{error}</p>}
+        {uploadCompletedCount > 0 && (
+          <p className="text-green-600 text-[14px] font-semibold tracking-tight text-center">
+            🎉 {uploadCompletedCount} submission{uploadCompletedCount > 1 ? "s" : ""} completed successfully! You can make another submission above.
+          </p>
+        )}
 
         {/* Result Panel */}
         {result && (
-          <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-3.5 border border-black/5">
+          <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-2.5 border border-black/5">
             <div className="flex items-center justify-between">
               <h4 className="text-[16px] font-bold text-[#1A1A1A]">Result</h4>
               <span className={`text-[14px] font-bold ${severityColor(result.severity)}`}>

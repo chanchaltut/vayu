@@ -16,6 +16,8 @@ interface Hotspot {
 
 interface HotspotsMapCardProps {
   hotspots?: Hotspot[];
+  centerLat?: number;
+  centerLon?: number;
 }
 
 const COLOUR_MAP: Record<string, string> = {
@@ -26,7 +28,11 @@ const COLOUR_MAP: Record<string, string> = {
   purple: "#a855f7",
 };
 
-export default function HotspotsMapCard({ hotspots = [] }: HotspotsMapCardProps) {
+export default function HotspotsMapCard({
+  hotspots = [],
+  centerLat = 22.5726,
+  centerLon = 88.3639,
+}: HotspotsMapCardProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
 
@@ -39,20 +45,33 @@ export default function HotspotsMapCard({ hotspots = [] }: HotspotsMapCardProps)
       const { Map } = await importLibrary("maps") as google.maps.MapsLibrary;
       const { AdvancedMarkerElement } = await importLibrary("marker") as google.maps.MarkerLibrary;
 
-      const center = hotspots.length > 0
-        ? { lat: hotspots[0].lat, lng: hotspots[0].lon }
-        : { lat: 28.6139, lng: 77.2090 };
+      const center = { lat: centerLat, lng: centerLon };
 
       const map = new Map(mapRef.current!, {
         center,
-        zoom: hotspots.length > 0 ? 11 : 10,
+        zoom: 12, // Zoomed in to show local neighborhood (Kalyani) details
         mapId: "vayu_hotspot_map",
         disableDefaultUI: true,
         zoomControl: true,
       });
       mapInstanceRef.current = map;
 
-      // Drop a coloured pin for each hotspot
+      // 1. Drop a pulsing blue pin for the user's geolocated center
+      const userPin = document.createElement("div");
+      userPin.style.cssText = `
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #005AFF; border: 2.5px solid white;
+        box-shadow: 0 0 10px 4px rgba(0, 90, 255, 0.5);
+        cursor: default;
+      `;
+      new AdvancedMarkerElement({
+        position: center,
+        map,
+        content: userPin,
+        title: "Your Detected Location",
+      });
+
+      // 2. Drop a colored pin for each hotspot
       hotspots.forEach((hs) => {
         const color = COLOUR_MAP[hs.colour] ?? "#f97316";
         const pin = document.createElement("div");
@@ -76,10 +95,10 @@ export default function HotspotsMapCard({ hotspots = [] }: HotspotsMapCardProps)
         // Info window on click
         const infoWindow = new google.maps.InfoWindow({
           content: `
-            <div style="font-family:sans-serif;padding:4px 6px;max-width:220px">
-              <strong style="font-size:14px">AQI: ${hs.avg_aqi}</strong>
-              <p style="margin:4px 0;font-size:12px;color:#555">${hs.aqi_category}</p>
-              <p style="margin:0;font-size:12px;color:#333">⚡ ${hs.action}</p>
+            <div style="font-family:sans-serif;padding:6px 8px;max-width:240px;color:#1A1A1A">
+              <strong style="font-size:14px;display:block;margin-bottom:2px">AQI: ${hs.avg_aqi} (${hs.aqi_category})</strong>
+              <span style="font-size:11px;color:#555;display:block;margin-bottom:6px">Severity: ${hs.severity}/10</span>
+              <p style="margin:0;font-size:12px;color:#000;font-weight:600">📍 Recommended: ${hs.action}</p>
             </div>
           `,
         });
@@ -89,7 +108,7 @@ export default function HotspotsMapCard({ hotspots = [] }: HotspotsMapCardProps)
 
     initMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotspots.length]);
+  }, [hotspots.length, centerLat, centerLon]);
 
   return (
     <div className="w-150 h-110 bg-[#FAFAFA] rounded-3xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col relative z-10">
