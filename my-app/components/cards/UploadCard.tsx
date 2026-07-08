@@ -185,8 +185,13 @@ export default function UploadCard() {
         {/* Status Indicators (Error / Submission Count) */}
         {error && <p className="text-red-500 text-[14px] font-medium">{error}</p>}
         {uploadCompletedCount > 0 && (
-          <p className="text-green-600 text-[14px] font-semibold tracking-tight text-center">
-            🎉 {uploadCompletedCount} submission{uploadCompletedCount > 1 ? "s" : ""} completed successfully! You can make another submission above.
+          <p className="text-green-600 text-[14.5px] font-bold tracking-tight text-center flex items-center justify-center gap-1.5">
+            <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            <span>
+              Thanks for making {uploadCompletedCount} submission{uploadCompletedCount > 1 ? "s" : ""}! You can make another submission above.
+            </span>
           </p>
         )}
 
@@ -222,28 +227,18 @@ export default function UploadCard() {
               </span>
               
               {/* Pollution Type */}
-              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a1.125 1.125 0 001.59 0l4.318-4.317a1.125 1.125 0 000-1.59L9.58 3.659a1.125 1.125 0 00-1.592 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
-                </svg>
-                <span>Type: <span className="font-medium text-[#555]">{result.pollution_type}</span></span>
+              <span className="text-[13px] font-bold text-[#1A1A1A]">
+                Type: <span className="font-semibold text-gray-600">{result.pollution_type}</span>
               </span>
 
               {/* AQI Impact */}
-              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
-                <svg className={`w-4.5 h-4.5 shrink-0 ${getAqiImpactColor(result.estimated_aqi_impact)}`} fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-                <span>AQI Impact: <span className={`font-medium ${getAqiImpactColor(result.estimated_aqi_impact)}`}>{result.estimated_aqi_impact}</span></span>
+              <span className="text-[13px] font-bold text-[#1A1A1A]">
+                AQI Impact: <span className={`font-semibold ${getAqiImpactColor(result.estimated_aqi_impact)}`}>{result.estimated_aqi_impact}</span>
               </span>
 
               {/* Confidence */}
-              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
-                <span>Confidence: <span className="font-medium text-[#555]">{Math.round(result.confidence * 100)}%</span></span>
+              <span className="text-[13px] font-bold text-[#1A1A1A]">
+                Confidence: <span className="font-semibold text-gray-600">{Math.round(result.confidence * 100)}%</span>
               </span>
             </div>
           </div>

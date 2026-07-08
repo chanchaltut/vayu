@@ -16,11 +16,10 @@ export default function Toast({ message, type, onClose }: ToastProps) {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] border text-[14px] font-bold tracking-tight animate-bounce ${
-        type === "success"
-          ? "bg-green-50 border-green-200 text-green-800"
-          : "bg-red-50 border-red-200 text-red-800"
-      }`}
+      className={`fixed top-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] border text-[14px] font-bold tracking-tight animate-bounce ${type === "success"
+        ? "bg-green-50 border-green-200 text-green-800"
+        : "bg-red-50 border-red-200 text-red-800"
+        }`}
     >
       {type === "success" ? (
         <svg
