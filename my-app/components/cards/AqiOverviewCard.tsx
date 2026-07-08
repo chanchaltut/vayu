@@ -49,14 +49,14 @@ export default function AqiOverviewCard() {
         <button
           title="Menu"
           type="button"
-          className="text-[#8C8C8C] cursor-pointer"
+          className="w-7 h-7 text-[#8C8C8C] cursor-pointer"
         >
           <Image
             src="/assets/Menu.svg"
             alt="Menu"
             width={28}
             height={28}
-            className="w-7 h-auto"
+            className="object-contain h-auto"
           />
         </button>
       </div>

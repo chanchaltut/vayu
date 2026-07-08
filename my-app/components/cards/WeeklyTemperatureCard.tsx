@@ -39,6 +39,7 @@ export default function WeeklyTemperatureCard({
           src={icon}
           alt={`${day} weather`}
           fill
+          sizes="48px"
           className={`object-contain`} // Optional: grays out inactive icons if you don't have separate assets
         />
       </div>

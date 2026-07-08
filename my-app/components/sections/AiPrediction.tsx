@@ -47,7 +47,7 @@ export default function AiPrediction() {
   ];
 
   return (
-    <section className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden">
+    <section id="ai-prediction" className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden">
       {/* Reusable White Grid Background */}
       <GridBackground />
 

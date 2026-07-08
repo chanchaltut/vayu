@@ -18,7 +18,7 @@ export default function HotspotsMapCard() {
             alt="Menu"
             width={28}
             height={28}
-            className="w-7 h-auto object-contain"
+            className="object-contain h-auto"
           />
         </button>
       </div>

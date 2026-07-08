@@ -87,14 +87,14 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* --- CENTER FLOAT: Sun Cloud (Remains absolutely positioned) --- */}
+        {/* --- CENTER FLOAT: Sun Cloud --- */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Image
             src="/assets/SunCloud.png"
             alt="Sun and Cloud"
             width={379}
             height={285}
-            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto"
+            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto animate-float"
             priority
           />
         </div>

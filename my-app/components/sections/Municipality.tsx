@@ -6,7 +6,10 @@ import DeformedContainer from "../containers/DeformedContainer";
 
 export default function Municipality() {
   return (
-    <section className="relative w-full flex flex-col items-center pt-20 pb-28 overflow-hidden">
+    <section
+      id="report"
+      className="relative w-full flex flex-col items-center pt-20 pb-28 overflow-hidden"
+    >
       {/* Background Grid */}
       <GridBackground />
 
@@ -26,13 +29,13 @@ export default function Municipality() {
         <div className="mt-12 w-full flex justify-between gap-6">
           <ReportCard
             title="Kolkata"
-            icon="/assets/Shape 89.svg"
+            icon="/assets/Shape 106.svg"
             bgColor="bg-[#050B14]" // Very dark blue/black
             textColor="text-white"
           />
           <ReportCard
             title="howrah"
-            icon="/assets/Shape 106.svg"
+            icon="/assets/Shape 89.svg"
             bgColor="bg-[#5690FF]" // Vibrant blue
             textColor="text-[#171717]"
           />
