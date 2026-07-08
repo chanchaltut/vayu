@@ -30,15 +30,15 @@ interface SensorReading {
 const weekTempData = [
   { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
   { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
-  { day: "Mon", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
+  { day: "Mon", icon: "/assets/SunCloud.png",  temp: 10, isActive: false },
   { day: "Tue", icon: "/assets/RainCloud.png", temp: 10, isActive: false },
-  { day: "Wed", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
+  { day: "Wed", icon: "/assets/SunCloud.png",  temp: 10, isActive: false },
   { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
 ];
 
 export default function AiPrediction() {
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
-  const [readings, setReadings] = useState<SensorReading[]>([]);
+  const [hotspots, setHotspots]   = useState<Hotspot[]>([]);
+  const [readings, setReadings]   = useState<SensorReading[]>([]);
   const [latestAqi, setLatestAqi] = useState<number>(0);
   const [latestTemp, setLatestTemp] = useState<number>(0);
 
@@ -47,7 +47,7 @@ export default function AiPrediction() {
     fetch("/api/hotspots")
       .then((r) => r.json())
       .then((json) => setHotspots(json?.data?.hotspots ?? []))
-      .catch(() => { });
+      .catch(() => {});
 
     // Fetch sensor readings
     fetch("/api/sensors")
@@ -60,59 +60,58 @@ export default function AiPrediction() {
           setLatestTemp(Math.round(data[0].temperature));
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   const topReasoning = hotspots[0]?.reasoning ?? "AI is analysing data — run hotspot detection to populate this.";
 
   return (
     <section className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden">
-      <section id="ai-prediction" className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden">
-        {/* Reusable White Grid Background */}
-        <GridBackground />
+      {/* Reusable White Grid Background */}
+      <GridBackground />
 
-        <div className="relative z-10 w-full max-w-360 mx-auto px-8 flex flex-col items-center">
-          <SectionHeader
-            heading="Detect. Analyze. Predict."
-            subheading="Hotspot detection now. Air quality forecasts for the next 24 hours."
-          />
+      <div className="relative z-10 w-full max-w-360 mx-auto px-8 flex flex-col items-center">
+        <SectionHeader
+          heading="Detect. Analyze. Predict."
+          subheading="Hotspot detection now. Air quality forecasts for the next 24 hours."
+        />
 
-          {/* TOP ROW */}
-          <div className="mt-8 w-full max-w-360 flex justify-between gap-8">
-            {/* Left Column */}
-            <div className="flex flex-col gap-6 w-[45%]">
-              <div className="flex items-center justify-between w-full">
-                <CountCard label="Temperature" value={latestTemp ? `${latestTemp}°C` : "—"} />
-                <CountCard label="AQI" value={latestAqi || "—"} />
-                <CountCard label="Hotspots" value={hotspots.length || "—"} />
-              </div>
-              <AqiOverviewCard readings={readings} />
+        {/* TOP ROW */}
+        <div className="mt-8 w-full max-w-360 flex justify-between gap-8">
+          {/* Left Column */}
+          <div className="flex flex-col gap-6 w-[45%]">
+            <div className="flex items-center justify-between w-full">
+              <CountCard label="Temperature" value={latestTemp ? `${latestTemp}°C` : "—"} />
+              <CountCard label="AQI"         value={latestAqi || "—"} />
+              <CountCard label="Hotspots"    value={hotspots.length || "—"} />
             </div>
-
-            {/* Right Column */}
-            <div className="w-[50%] flex justify-end">
-              <HotspotsMapCard hotspots={hotspots} />
-            </div>
+            <AqiOverviewCard readings={readings} />
           </div>
 
-          {/* BOTTOM ROW */}
-          <div className="mt-8 w-full max-w-360 flex justify-between items-end">
-            <div className="w-[45%] flex items-end justify-center gap-4">
-              {weekTempData.map((data) => (
-                <WeeklyTemperatureCard
-                  key={data.day}
-                  day={data.day}
-                  icon={data.icon}
-                  temperature={data.temp}
-                  isActive={data.isActive}
-                />
-              ))}
-            </div>
-            <div className="w-[40%]">
-              <TextDescriptionCard reasoning={topReasoning} />
-            </div>
+          {/* Right Column */}
+          <div className="w-[50%] flex justify-end">
+            <HotspotsMapCard hotspots={hotspots} />
           </div>
         </div>
-      </section>
-      );
+
+        {/* BOTTOM ROW */}
+        <div className="mt-8 w-full max-w-360 flex justify-between items-end">
+          <div className="w-[45%] flex items-end justify-center gap-4">
+            {weekTempData.map((data) => (
+              <WeeklyTemperatureCard
+                key={data.day}
+                day={data.day}
+                icon={data.icon}
+                temperature={data.temp}
+                isActive={data.isActive}
+              />
+            ))}
+          </div>
+          <div className="w-[40%]">
+            <TextDescriptionCard reasoning={topReasoning} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }

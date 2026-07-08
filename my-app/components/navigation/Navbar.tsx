@@ -5,20 +5,18 @@ import NavButton from "../buttons/NavButton";
 export default function Navbar() {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const [isScrolled, setIsScrolled] = useState(false); // NEW: Tracks if we left the top
+  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      // 1. Hide/Show Logic
       if (currentScrollY > lastScrollY && currentScrollY > 50) {
         setIsVisible(false);
       } else if (currentScrollY < lastScrollY) {
         setIsVisible(true);
       }
 
-      // 2. Background UI Logic: If scrolled past 100px, trigger the "scrolled" style
       if (currentScrollY > 100) {
         setIsScrolled(true);
       } else {
