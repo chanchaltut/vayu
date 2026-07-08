@@ -70,6 +70,13 @@ export default function UploadCard() {
   const severityColor = (s: number) =>
     s >= 8 ? "text-red-600" : s >= 5 ? "text-orange-500" : "text-green-600";
 
+  const getAqiImpactColor = (impact: string) => {
+    const imp = impact.toLowerCase();
+    if (imp.includes("low") || imp.includes("good")) return "text-green-600";
+    if (imp.includes("medium") || imp.includes("mod") || imp.includes("moderate")) return "text-amber-500";
+    return "text-red-600"; // high, severe, hazardous
+  };
+
   return (
     <div
       className="w-150 rounded-4xl p-0.75 shadow-[0_20px_50px_rgba(0,0,0,0.04)]"
@@ -149,42 +156,58 @@ export default function UploadCard() {
 
         {/* Result Panel */}
         {result && (
-          <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-2 border border-black/5">
+          <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-3.5 border border-black/5">
             <div className="flex items-center justify-between">
               <h4 className="text-[16px] font-bold text-[#1A1A1A]">Result</h4>
               <span className={`text-[14px] font-bold ${severityColor(result.severity)}`}>
                 Severity {result.severity}/10
               </span>
             </div>
-            <p className="text-[14px] text-[#444] leading-[1.5]">{result.description}</p>
+            <p className="text-[14px] text-[#444] leading-[1.5] font-medium">{result.description}</p>
             
-            <div className="flex gap-4 mt-1.5 flex-wrap items-center">
+            <div className="flex gap-x-5 gap-y-2 mt-1 flex-wrap items-center border-t border-black/5 pt-3">
+              {/* Verdict Indicator */}
               <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
                 {result.smoke_detected ? (
                   <>
-                    <svg className="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.319.771-.693 1.74-1.085 2.587L6.9 9.387a1 1 0 00-.111.41v5.3a2 2 0 002 2h6.07a2 2 0 001.993-1.81l.663-7.29A1 1 0 0016.52 7.07l-3.32-.228 1.194-4.29z" clipRule="evenodd" />
+                    <svg className="w-4.5 h-4.5 text-red-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
-                    <span>Smoke detected</span>
+                    <span className="text-red-600">Smoke detected</span>
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    <svg className="w-4.5 h-4.5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>No smoke</span>
+                    <span className="text-green-600">No smoke</span>
                   </>
                 )}
               </span>
               
-              <span className="text-[13px] font-semibold text-[#1A1A1A]">
-                Type: <span className="font-medium text-[#555]">{result.pollution_type}</span>
+              {/* Pollution Type */}
+              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a1.125 1.125 0 001.59 0l4.318-4.317a1.125 1.125 0 000-1.59L9.58 3.659a1.125 1.125 0 00-1.592 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                </svg>
+                <span>Type: <span className="font-medium text-[#555]">{result.pollution_type}</span></span>
               </span>
-              <span className="text-[13px] font-semibold text-[#1A1A1A]">
-                AQI Impact: <span className="font-medium text-[#555]">{result.estimated_aqi_impact}</span>
+
+              {/* AQI Impact */}
+              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
+                <svg className={`w-4.5 h-4.5 shrink-0 ${getAqiImpactColor(result.estimated_aqi_impact)}`} fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                </svg>
+                <span>AQI Impact: <span className={`font-medium ${getAqiImpactColor(result.estimated_aqi_impact)}`}>{result.estimated_aqi_impact}</span></span>
               </span>
-              <span className="text-[13px] font-semibold text-[#1A1A1A]">
-                Confidence: <span className="font-medium text-[#555]">{Math.round(result.confidence * 100)}%</span>
+
+              {/* Confidence */}
+              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+                <span>Confidence: <span className="font-medium text-[#555]">{Math.round(result.confidence * 100)}%</span></span>
               </span>
             </div>
           </div>
