@@ -94,4 +94,27 @@ body {
   #role-dev-indicator {
     display: none !important;
   }
+
+  /* Hide Google Translate Banner and Widget completely */
+  .goog-te-banner-frame,
+  .goog-te-banner-frame\.skiptranslate,
+  .goog-te-banner,
+  .goog-te-gadget,
+  .goog-te-menu-value,
+  iframe.goog-te-banner-frame,
+  #google_translate_element,
+  #goog-gt-tt,
+  .goog-te-balloon-frame {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    opacity: 0 !important;
+  }
+  html {
+    margin-top: 0 !important;
+  }
+  body {
+    top: 0 !important;
+    position: static !important;
+  }
 }
