@@ -199,7 +199,7 @@ export default function Hero() {
         }
         if (weatherJson?.current?.weather_code != null) {
           const code = weatherJson.current.weather_code;
-          setWeatherDesc(getWeatherDescription(code));
+          setWeatherDesc(`${getWeatherDescription(code)} (Today)`);
           
           // Select visual weather template dynamically
           const tKey = getThemeKey(code);
