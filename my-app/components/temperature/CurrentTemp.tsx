@@ -19,11 +19,8 @@ export default function CurrentTemp({
         <span className="text-[75px] font-normal mt-5 ml-1">°C</span>
       </div>
 
-      {/* 
-        Description Text aligned directly to the visual left edge of the massive number.
-        We use pl-8 to offset the font's natural side-bearing space of the huge 300px digit.
-      */}
-      <div className="text-left pl-8.5 -mt-3">
+      {/* Description Text aligned directly to the left edge of the massive number */}
+      <div className="text-left pl-1.5 mt-0">
         <p className="text-[22px] font-medium leading-snug whitespace-pre-line opacity-95">
           {description}
         </p>
