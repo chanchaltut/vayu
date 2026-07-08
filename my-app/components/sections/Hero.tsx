@@ -8,33 +8,159 @@ import CurrentTemp from "@/components/temperature/CurrentTemp";
 import CloudLogo from "@/components/texts/CloudLogo";
 import HeroGreeting from "@/components/texts/HeroGreeting";
 
+interface Coords {
+  lat: number;
+  lon: number;
+}
+
+function getWeatherDescription(code: number): string {
+  if (code === 0) return "clear sky";
+  if (code === 1 || code === 2 || code === 3) return "mainly clear and partly cloudy";
+  if (code === 45 || code === 48) return "foggy conditions";
+  if (code >= 51 && code <= 55) return "light to moderate drizzle";
+  if (code >= 61 && code <= 65) return "occasional rain showers";
+  if (code >= 71 && code <= 77) return "light snow flurries";
+  if (code >= 80 && code <= 82) return "violent rain showers";
+  if (code >= 95 && code <= 99) return "thunderstorms and unstable weather";
+  return "partly cloudy";
+}
+
 export default function Hero() {
   const [temperature, setTemperature] = useState(27);
   const [aqi, setAqi] = useState(30);
   const [aqiLabel, setAqiLabel] = useState("Air quality data loading...");
+  const [weatherDesc, setWeatherDesc] = useState("mainly clear and partly cloudy");
+  
+  // Geolocation states
+  const [coords, setCoords] = useState<Coords>({ lat: 22.5726, lon: 88.3639 });
+  const [locationName, setLocationName] = useState("Detecting location...");
+  const [greeting, setGreeting] = useState({ line1: "Good", line2: "Morning" });
 
+  // 1. Calculate time-of-day greeting
   useEffect(() => {
-    fetch("/api/sensors")
-      .then((r) => r.json())
-      .then((json) => {
-        const latest = json?.data?.readings?.[0];
-        if (!latest) return;
-        if (latest.temperature != null) setTemperature(Math.round(latest.temperature));
-        if (latest.aqi != null) {
-          setAqi(latest.aqi);
-          const a = latest.aqi;
+    const hrs = new Date().getHours();
+    if (hrs >= 5 && hrs < 12) {
+      setGreeting({ line1: "Good", line2: "Morning" });
+    } else if (hrs >= 12 && hrs < 17) {
+      setGreeting({ line1: "Good", line2: "Afternoon" });
+    } else if (hrs >= 17 && hrs < 21) {
+      setGreeting({ line1: "Good", line2: "Evening" });
+    } else {
+      setGreeting({ line1: "Good", line2: "Night" });
+    }
+  }, []);
+
+  // 2. Geolocation cascade (Browser, Photo upload storage, Hardware node position, IP Geolocation)
+  useEffect(() => {
+    const resolveLocation = async () => {
+      // Priority A: Check if browser geolocation is allowed
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            setCoords({ lat, lon });
+            
+            // Reverse geocode via free Nominatim API
+            try {
+              const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+              );
+              const data = await res.json();
+              const addr = data?.address;
+              const place = addr?.city || addr?.town || addr?.suburb || addr?.village || addr?.state || "India";
+              setLocationName(`${place}, India`);
+            } catch (e) {
+              setLocationName("Your Location");
+            }
+          },
+          async () => {
+            // Priority B: Check local storage for last uploaded photo coordinates
+            const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
+            if (cachedCoords) {
+              try {
+                const parsed = JSON.parse(cachedCoords);
+                if (parsed.lat && parsed.lon) {
+                  setCoords({ lat: parsed.lat, lon: parsed.lon });
+                  setLocationName(parsed.city || "Reported Location");
+                  return;
+                }
+              } catch (e) {}
+            }
+
+            // Priority C: Fetch hardware coordinates from latest sensor reading
+            try {
+              const res = await fetch("/api/sensors");
+              const json = await res.json();
+              const latest = json?.data?.readings?.[0];
+              if (latest && latest.lat && latest.lon) {
+                setCoords({ lat: latest.lat, lon: latest.lon });
+                setLocationName(latest.source === "satellite" ? "Kolkata, India" : "Hardware Deployed");
+                return;
+              }
+            } catch (e) {}
+
+            // Priority D: IP-based lookup as final fallback
+            try {
+              const res = await fetch("https://ipapi.co/json/");
+              const data = await res.json();
+              if (data.latitude && data.longitude) {
+                setCoords({ lat: data.latitude, lon: data.longitude });
+                setLocationName(`${data.city || "Kalyani"}, ${data.country_name || "India"}`);
+                return;
+              }
+            } catch (e) {}
+
+            // Default
+            setLocationName("Kolkata, India");
+          }
+        );
+      }
+    };
+
+    resolveLocation();
+  }, []);
+
+  // 3. Fetch real meteorological data for the coordinates resolved
+  useEffect(() => {
+    const fetchWeatherAndAqi = async () => {
+      try {
+        // Fetch weather
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,weather_code`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherJson = await weatherRes.json();
+        
+        if (weatherJson?.current?.temperature_2m != null) {
+          setTemperature(Math.round(weatherJson.current.temperature_2m));
+        }
+        if (weatherJson?.current?.weather_code != null) {
+          setWeatherDesc(getWeatherDescription(weatherJson.current.weather_code));
+        }
+
+        // Fetch satellite-derived Air Quality
+        const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&current=us_aqi`;
+        const aqRes = await fetch(aqUrl);
+        const aqJson = await aqRes.json();
+        const liveAqi = aqJson?.current?.us_aqi;
+        
+        if (liveAqi != null) {
+          setAqi(liveAqi);
           setAqiLabel(
-            a <= 50 ? "Good air quality" :
-              a <= 100 ? "Satisfactory air quality" :
-                a <= 200 ? "Moderate air quality" :
-                  a <= 300 ? "Poor — harmful for sensitive groups" :
-                    a <= 400 ? "Very poor — harmful for your body" :
+            liveAqi <= 50 ? "Good air quality" :
+              liveAqi <= 100 ? "Satisfactory air quality" :
+                liveAqi <= 200 ? "Moderate air quality" :
+                  liveAqi <= 300 ? "Poor — harmful for sensitive groups" :
+                    liveAqi <= 400 ? "Very poor — harmful for your body" :
                       "Severe — hazardous"
           );
         }
-      })
-      .catch(() => {/* keep defaults */ });
-  }, []);
+      } catch (err) {
+        console.error("Failed to load location parameters", err);
+      }
+    };
+
+    fetchWeatherAndAqi();
+  }, [coords]);
 
   return (
     <section className="relative min-h-screen w-full bg-hero-gradient overflow-hidden flex flex-col">
@@ -64,9 +190,9 @@ export default function Hero() {
             <div className="flex-1"></div>
             <div className="w-37 -mt-16 flex justify-end"><CloudLogo /></div>
           </div>
-          <div className="w-full flex justify-between relative z-10 pointer-events-none">
-            <HeroGreeting />
-            <CurrentTemp temperature={temperature} />
+          <div className="w-full flex justify-between relative z-10">
+            <HeroGreeting line1={greeting.line1} line2={greeting.line2} location={locationName} />
+            <CurrentTemp temperature={temperature} description={weatherDesc} />
           </div>
         </div>
 
@@ -85,7 +211,7 @@ export default function Hero() {
         {/* BOTTOM HALF */}
         <div className="w-full flex justify-between items-end">
           <AqiCard title={aqiLabel} aqiValue={aqi} />
-          <WeeklyForecast />
+          <WeeklyForecast lat={coords.lat} lon={coords.lon} />
         </div>
       </div>
     </section>

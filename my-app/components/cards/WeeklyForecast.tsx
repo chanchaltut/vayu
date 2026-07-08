@@ -9,8 +9,12 @@ interface DailyWeather {
   icon: string;
 }
 
+interface WeeklyForecastProps {
+  lat?: number;
+  lon?: number;
+}
+
 function getWeatherIcon(code: number): string {
-  // WMO Weather interpretation codes
   if (code === 0 || code === 1 || code === 2 || code === 3) {
     return "/assets/SunCloud.png";
   }
@@ -29,7 +33,10 @@ function getWeatherIcon(code: number): string {
   return "/assets/SunCloud.png"; // default
 }
 
-export default function WeeklyForecast() {
+export default function WeeklyForecast({
+  lat = 22.5726,
+  lon = 88.3639,
+}: WeeklyForecastProps) {
   const [forecast, setForecast] = useState<DailyWeather[]>([
     { day: "Mon", temp: 30, icon: "/assets/SunCloud.png" },
     { day: "Tue", temp: 29, icon: "/assets/RainCloud.png" },
@@ -39,9 +46,9 @@ export default function WeeklyForecast() {
   ]);
 
   useEffect(() => {
-    // Fetch live 5-day daily forecast based on real satellite-meteorology models (Open-Meteo)
+    // Fetch live 5-day daily forecast based on real satellite-meteorology models
     fetch(
-      "https://api.open-meteo.com/v1/forecast?latitude=22.5726&longitude=88.3639&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata"
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata`
     )
       .then((res) => res.json())
       .then((data) => {
@@ -66,7 +73,7 @@ export default function WeeklyForecast() {
       .catch((err) => {
         console.error("Failed to load satellite forecast", err);
       });
-  }, []);
+  }, [lat, lon]);
 
   return (
     <div className="flex flex-col w-54">
