@@ -25,22 +25,14 @@ VAYU is a hyper-local air quality monitoring and anomaly detection platform. Whi
 │                      (POST /api/sensors)      │ (Twilio SMS Integration)   │
 │                            │                  ▼                            │
 │                            │           ┌──────────────┐                    │
-│                            │           │ Municipality │                    │
 │                            │           │ Alert System │                    │
 └────────────────────────────┼───────────└──────────────┘────────────────────┘
                              │
-                      (HTTP Port 80)
+                      (HTTPS Port 443)
                              │
                   ┌──────────┴──────────┐
-                  │ Local HTTP Proxy    │
-                  │ (ngrok Relay)       │
-                  └──────────▲──────────┘
-                             │
-                      (TinkerCAD WiFi)
-                             │
-                  ┌──────────┴──────────┐
-                  │ Arduino + ESP8266   │
-                  │   Hardware Node     │
+                  │ Physical Hardware   │
+                  │ Node (ESP8266 WiFi) │
                   └─────────────────────┘
 ```
 
@@ -76,7 +68,6 @@ vayu/
 │   │   │   ├── detect-hotspots/     # Gemini Fusion Engine trigger
 │   │   │   ├── forecast/            # 24h Gemini AQI predictive model
 │   │   │   ├── hotspots/            # Serves active Google Map coordinates
-│   │   │   ├── photos/              # Citizen upload + Gemini Vision analyzer
 │   │   │   └── sensors/             # Arduino telemetry ingestion endpoint
 │   │   ├── map/                     # Full-screen maps page
 │   │   └── page.tsx                 # Main Dashboard page
@@ -85,40 +76,39 @@ vayu/
 │   ├── data-pipeline/               # BigQuery schema ingestion & writing scripts
 │   └── public/assets/               # Static UI illustrations, icons, logos
 │
-├── hardware/                        # Embedded Systems
-│   ├── arduino-firmware/            # Arduino `.ino` files
-│   └── relay/                       # Local Node.js HTTP -> HTTPS proxy server
+└── hardware/                        # Embedded Systems
+    └── arduino-firmware/            # Arduino `.ino` firmware configuration
 ```
 
 ---
 
 ## 👥 The Team & Roles
 
-*   **Parth** (ECE / Hardware): Built the physical/simulated Arduino sensor array circuits, calibrated MQ135/TMP36 values, and wrote the ESP8266 serial communication firmware.
+*   **Parth** (ECE / Hardware): Wrote the direct SSL sensor firmware and calibrated MQ135/TMP36 output readings to map with air quality indices.
 *   **Chanchal** (Gen AI Full-Stack): Formed the Next.js API architecture, structured BigQuery schemas, and implemented the core Gemini Fusion spatial cluster analyzer.
 *   **Ankit** (Gen AI Frontend): Designed the dashboard layout, integrated Google Maps SDK with custom SVG pins, styled responsive UI panels, and built the citizen upload interface.
 *   **Sumit** (Core ML & Data Integration): Calibrated AQI scaling indices, mapped Twilio messaging templates, and engineered Gemini's forecasting prompts.
 
 ---
 
-## 📡 Hardware & TinkerCAD Connection
+## 📡 Physical Hardware Node Setup
 
-TinkerCAD's ESP8266 simulator does not support SSL (`AT+CIPSTART="SSL"` on port 443). To route simulated sensor packets to Vercel's production HTTPS servers, a local proxy acts as a bridge:
+VAYU utilizes an Arduino Uno equipped with an ESP8266 serial transceiver to upload telemetry directly to the cloud. Because production Next.js servers on Vercel enforce SSL (HTTPS) routing, the ESP8266 uses direct SSL socket negotiation:
 
-1.  **Start the Local Relay**:
-    ```bash
-    cd hardware/relay
-    npm install
-    node server.js
+1.  **Configure Network Credentials**:
+    Open [air.ino](file:///c:/Users/Dell/Desktop/vayu/hardware/arduino-firmware/air.ino) and update your local Wi-Fi parameters:
+    ```cpp
+    String ssid     = "YOUR_WIFI_SSID";
+    String password = "YOUR_WIFI_PASSWORD";
     ```
-2.  **Expose the Port via Ngrok**:
-    ```bash
-    npx ngrok http 3001
+2.  **Configure Upstream Endpoint**:
+    The sketch directs payloads to the Vercel API over port 443:
+    ```cpp
+    String host     = "vayuai.vercel.app";
+    const int httpsPort = 443;
     ```
-3.  **Upload Firmware to Arduino**:
-    *   Open `hardware/arduino-firmware/air.ino`.
-    *   Change `host` to your generated ngrok URL: `String host = "YOUR_NGROK_SUBDOMAIN.ngrok-free.app";`
-    *   Upload the code to your simulated hardware board.
+3.  **Deploy Sketch**:
+    Flash the configuration onto the micro-controller using the Arduino IDE. Open the Serial Monitor at `115200` baud to observe the Wi-Fi connection handshake and view incoming HTTP responses returned directly from the Vercel serverless database engine.
 
 ---
 

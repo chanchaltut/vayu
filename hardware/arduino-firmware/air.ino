@@ -2,12 +2,11 @@
 
 //================== Vayu Backend Configuration ==================
 
-//================== Vayu Backend Configuration ==================
+String ssid     = "YOUR_WIFI_SSID";
+String password = "YOUR_WIFI_PASSWORD";
+String host     = "vayuai.vercel.app";
+const int httpsPort = 443;          // Vercel requires HTTPS (SSL) over port 443
 
-String ssid     = "Simulator Wifi";
-String password = "";
-String host     = "qualifier-sizing-gluten.ngrok-free.dev"; // Your ngrok URL
-const int httpPort = 80;                                    // Use port 80 for ngrok
 //================== MQ135 ==================
 
 const int MQ135_Pin  = A0;
@@ -50,28 +49,28 @@ bool sendATCommand(String cmd, String expected, int timeoutMs = 3000) {
 }
 
 //================================================================
-// setupESP8266 — join WiFi only (TCP opened per request)
+// setupESP8266 — Connects physical ESP8266 directly to local WiFi
 //================================================================
 int setupESP8266() {
   Serial.begin(115200);
   delay(1000);
 
-  // Test AT
+  // Test AT communication
   if (!sendATCommand("AT", "OK", 2000)) return 1;
 
   // Set single-connection mode
   sendATCommand("AT+CIPMUX=0", "OK", 2000);
 
-  // Join WiFi
-  if (!sendATCommand("AT+CWJAP=\"" + ssid + "\",\"" + password + "\"", "OK", 8000)) return 2;
+  // Connect to the physical WiFi Access Point
+  if (!sendATCommand("AT+CWJAP=\"" + ssid + "\",\"" + password + "\"", "OK", 10000)) return 2;
 
   return 0;
 }
 
 //================================================================
 // sendToVayuBackend
-// Opens SSL TCP → sends POST → reads + prints response → closes TCP
-// Re-opens each call so Connection:close doesn't break next request
+// Establishes a secure SSL socket -> POSTs JSON data directly
+// to Vercel API -> prints responses -> closes connection
 //================================================================
 void sendToVayuBackend() {
 
@@ -99,28 +98,26 @@ void sendToVayuBackend() {
   Serial.print("[VAYU] Payload: ");
   Serial.println(jsonPayload);
 
-  // ── Open SSL connection ───────────────────────────────────────
-  // Use TCP (not SSL) — TinkerCAD ESP8266 simulator doesn't support SSL
-  // The ngrok relay server handles the SSL upgrade to Vercel
-  String cipStart = "AT+CIPSTART=\"TCP\",\"" + host + "\"," + String(httpPort);
+  // ── Open direct SSL connection to Vercel ──────────────────────
+  String cipStart = "AT+CIPSTART=\"SSL\",\"" + host + "\"," + String(httpsPort);
   if (!sendATCommand(cipStart, "OK", 8000)) {
-    Serial.println("[VAYU] CIPSTART failed — check WiFi or host");
+    Serial.println("[VAYU] CIPSTART SSL connection failed");
     return;
   }
-  Serial.println("[VAYU] TCP connected");
+  Serial.println("[VAYU] SSL Socket opened");
 
   // ── Send byte count ──────────────────────────────────────────
   if (!sendATCommand("AT+CIPSEND=" + String(totalLen), ">", 5000)) {
-    Serial.println("[VAYU] CIPSEND failed");
+    Serial.println("[VAYU] CIPSEND execution failed");
     sendATCommand("AT+CIPCLOSE", "OK", 2000);
     return;
   }
 
-  // ── Send the actual HTTP request ──────────────────────────────
+  // ── Send actual HTTP request payload ─────────────────────────
   Serial.print(httpRequest);
   delay(1000);
 
-  // ── Read HTTP response and print it ──────────────────────────
+  // ── Read response from Vercel Server ─────────────────────────
   long start = millis();
   String resp = "";
   while ((millis() - start) < 5000) {
@@ -131,15 +128,15 @@ void sendToVayuBackend() {
     if (resp.indexOf("CLOSED") != -1) break;   // server closed connection
   }
 
-  Serial.println("[VAYU] Server response:");
+  Serial.println("[VAYU] Vercel response:");
   Serial.println(resp);
 
-  // Simple status check
-  if      (resp.indexOf("201") != -1) Serial.println("[VAYU] ✅ 201 Created — data saved to database!");
+  // Verify response code
+  if      (resp.indexOf("201") != -1) Serial.println("[VAYU] ✅ 201 Created — Data saved to BigQuery!");
   else if (resp.indexOf("200") != -1) Serial.println("[VAYU] ✅ 200 OK");
-  else if (resp.indexOf("400") != -1) Serial.println("[VAYU] ❌ 400 Bad Request — check payload");
-  else if (resp.indexOf("500") != -1) Serial.println("[VAYU] ❌ 500 Server Error — check Vercel logs");
-  else                                Serial.println("[VAYU] ⚠️  No recognized status");
+  else if (resp.indexOf("400") != -1) Serial.println("[VAYU] ❌ 400 Bad Request");
+  else if (resp.indexOf("500") != -1) Serial.println("[VAYU] ❌ 500 Server Error");
+  else                                Serial.println("[VAYU] ⚠️  Unknown Response Status");
 
   // ── Close connection ─────────────────────────────────────────
   sendATCommand("AT+CIPCLOSE", "OK", 2000);
@@ -173,18 +170,14 @@ void setup() {
 }
 
 //================================================================
-// TMP36 — FIXED temperature formula
-// TMP36 outputs 500mV at 0°C and 10mV/°C
-// On 5V Arduino with 10-bit ADC: voltage = reading * (5.0/1023.0)
-// celsius = (voltage - 0.5) * 100
-// In TinkerCAD simulator the reading may be exaggerated — clamped to 0-80°C
+// TMP36
 //================================================================
 void TMP36Sensor() {
   int   rawVal  = analogRead(TMP36_Pin);
   float voltage = rawVal * (5.0 / 1023.0);
   celsius = (voltage - 0.5) * 100.0;
 
-  // Safety clamp for simulator unrealistic values
+  // Clamped bounds
   if (celsius < -10.0) celsius = -10.0;
   if (celsius > 80.0)  celsius = 80.0;
 
@@ -225,7 +218,7 @@ void MQ135Sensor() {
 }
 
 //================================================================
-// loop — read sensors, display, POST to backend every 20s
+// loop
 //================================================================
 void loop() {
   MQ135Sensor();
@@ -234,9 +227,8 @@ void loop() {
   TMP36Sensor();
   delay(2000);
 
-  Serial.println("[VAYU] Sending to backend...");
+  Serial.println("[VAYU] Connecting directly to Vercel...");
   sendToVayuBackend();
 
-  // Wait 20 seconds before next upload
   delay(20000);
 }
