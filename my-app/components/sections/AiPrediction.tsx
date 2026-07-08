@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import GridBackground from "@/components/backgrounds/GridBackground";
 import SectionHeader from "@/components/texts/SectionHeader";
@@ -30,15 +31,15 @@ interface SensorReading {
 const weekTempData = [
   { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
   { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
-  { day: "Mon", icon: "/assets/SunCloud.png",  temp: 10, isActive: false },
+  { day: "Mon", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
   { day: "Tue", icon: "/assets/RainCloud.png", temp: 10, isActive: false },
-  { day: "Wed", icon: "/assets/SunCloud.png",  temp: 10, isActive: false },
+  { day: "Wed", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
   { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
 ];
 
 export default function AiPrediction() {
-  const [hotspots, setHotspots]   = useState<Hotspot[]>([]);
-  const [readings, setReadings]   = useState<SensorReading[]>([]);
+  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
+  const [readings, setReadings] = useState<SensorReading[]>([]);
   const [latestAqi, setLatestAqi] = useState<number>(0);
   const [latestTemp, setLatestTemp] = useState<number>(0);
 
@@ -47,27 +48,39 @@ export default function AiPrediction() {
     fetch("/api/hotspots")
       .then((r) => r.json())
       .then((json) => setHotspots(json?.data?.hotspots ?? []))
-      .catch(() => {});
+      .catch(() => { });
 
-    // Fetch sensor readings
+    // Fetch recent sensor readings
     fetch("/api/sensors")
       .then((r) => r.json())
       .then((json) => {
         const data: SensorReading[] = json?.data?.readings ?? [];
+
         setReadings(data);
+
         if (data.length > 0) {
           setLatestAqi(data[0].aqi);
-          setLatestTemp(Math.round(data[0].temperature));
+
+          setLatestTemp(
+            data[0].temperature != null
+              ? Math.round(data[0].temperature)
+              : 0
+          );
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
-  const topReasoning = hotspots[0]?.reasoning ?? "AI is analysing data — run hotspot detection to populate this.";
+  const topReasoning =
+    hotspots[0]?.reasoning ??
+    "AI is analysing data — run hotspot detection to populate this.";
 
   return (
-    <section className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden">
-      {/* Reusable White Grid Background */}
+    <section
+      id="ai-prediction"
+      className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden"
+    >
+      {/* Background */}
       <GridBackground />
 
       <div className="relative z-10 w-full max-w-360 mx-auto px-8 flex flex-col items-center">
@@ -76,15 +89,27 @@ export default function AiPrediction() {
           subheading="Hotspot detection now. Air quality forecasts for the next 24 hours."
         />
 
-        {/* TOP ROW */}
+        {/* Top Row */}
         <div className="mt-8 w-full max-w-360 flex justify-between gap-8">
           {/* Left Column */}
           <div className="flex flex-col gap-6 w-[45%]">
             <div className="flex items-center justify-between w-full">
-              <CountCard label="Temperature" value={latestTemp ? `${latestTemp}°C` : "—"} />
-              <CountCard label="AQI"         value={latestAqi || "—"} />
-              <CountCard label="Hotspots"    value={hotspots.length || "—"} />
+              <CountCard
+                label="Temperature"
+                value={latestTemp ? `${latestTemp}°C` : "—"}
+              />
+
+              <CountCard
+                label="AQI"
+                value={latestAqi || "—"}
+              />
+
+              <CountCard
+                label="Hotspots"
+                value={hotspots.length || "—"}
+              />
             </div>
+
             <AqiOverviewCard readings={readings} />
           </div>
 
@@ -94,7 +119,7 @@ export default function AiPrediction() {
           </div>
         </div>
 
-        {/* BOTTOM ROW */}
+        {/* Bottom Row */}
         <div className="mt-8 w-full max-w-360 flex justify-between items-end">
           <div className="w-[45%] flex items-end justify-center gap-4">
             {weekTempData.map((data) => (
@@ -107,6 +132,7 @@ export default function AiPrediction() {
               />
             ))}
           </div>
+
           <div className="w-[40%]">
             <TextDescriptionCard reasoning={topReasoning} />
           </div>

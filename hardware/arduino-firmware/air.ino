@@ -2,13 +2,13 @@
 
 //================== ThingSpeak & ESP8266 ==================
 
+//================== Vayu Backend Configuration ==================
+
 String ssid = "Simulator Wifi";
 String password = "";
-String host = "api.thingspeak.com";
+// Replace with your real Vercel domain or local IP (e.g. vayuai.vercel.app)
+String host = "vayuai.vercel.app";
 const int httpPort = 80;
-
-// Replace with your Write API Key
-String uri = "/update?api_key=YOUR_API_KEY";
 
 //================== MQ135 ==================
 
@@ -67,17 +67,26 @@ int setupESP8266()
   return 0;
 }
 
-// Send Data to ThingSpeak
+// Send Data to Vayu Backend via POST (JSON payload)
 
-void sendToThingSpeak()
+void sendToVayuBackend()
 {
+  // Construct JSON payload
+  // Uses Kolkata center coordinates (22.5726, 88.3639) for this hardware node
+  String jsonPayload = 
+      "{\"device_id\":\"arduino-001\",\"lat\":22.5726,\"lon\":88.3639,\"temperature\":" + 
+      String(celsius, 1) + 
+      ",\"aqi\":" + 
+      String(sensorVal) + 
+      "}";
+
   String httpPacket =
-      "GET " + uri +
-      "&field1=" + String(sensorVal) +
-      "&field2=" + String(celsius, 1) +
-      " HTTP/1.1\r\nHost: " +
-      host +
-      "\r\nConnection: close\r\n\r\n";
+      "POST /api/sensors HTTP/1.1\r\n"
+      "Host: " + host + "\r\n"
+      "Content-Type: application/json\r\n"
+      "Content-Length: " + String(jsonPayload.length()) + "\r\n"
+      "Connection: close\r\n\r\n" +
+      jsonPayload;
 
   int length = httpPacket.length();
 
@@ -202,9 +211,9 @@ void loop()
   TMP36Sensor();
   delay(2000);
 
-  // Upload to ThingSpeak
-  sendToThingSpeak();
+  // Upload to Vayu Backend
+  sendToVayuBackend();
 
-  // ThingSpeak free account update interval
+  // Send interval
   delay(15000);
 }
