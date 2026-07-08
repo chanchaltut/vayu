@@ -30,7 +30,10 @@ export default function UploadCard() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) { setError("Please select a photo first."); return; }
+    if (!selectedFile) {
+      setError("Please select a photo first.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -42,7 +45,9 @@ export default function UploadCard() {
       );
       lat = pos.coords.latitude;
       lon = pos.coords.longitude;
-    } catch { /* use default */ }
+    } catch {
+      /* use default */
+    }
 
     const formData = new FormData();
     formData.append("image", selectedFile);
@@ -68,12 +73,20 @@ export default function UploadCard() {
   return (
     <div
       className="w-150 rounded-4xl p-0.75 shadow-[0_20px_50px_rgba(0,0,0,0.04)]"
-      style={{ background: "linear-gradient(135deg, #FF3B30 0%, #C200FB 25%, #005AFF 50%, #00D604 80%, #FFCC00 100%)" }}
+      style={{
+        background:
+          "linear-gradient(135deg, #FF3B30 0%, #C200FB 25%, #005AFF 50%, #00D604 80%, #FFCC00 100%)",
+      }}
     >
       <div className="w-full bg-white rounded-[29px] flex flex-col items-center justify-center gap-6 py-8 px-6">
-
         {/* Hidden real file input */}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
 
         {/* Dropzone / Preview */}
         <div
@@ -82,11 +95,24 @@ export default function UploadCard() {
         >
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="preview" className="w-full h-full object-cover rounded-3xl" />
+            <img
+              src={preview}
+              alt="preview"
+              className="w-full h-full object-cover rounded-3xl"
+            />
           ) : (
             <span className="text-[#595959] text-[18px] font-medium tracking-tight flex items-center gap-2">
               Upload here
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                 <circle cx="12" cy="13" r="4"></circle>
               </svg>
@@ -119,24 +145,38 @@ export default function UploadCard() {
         </div>
 
         {/* Error */}
-        {error && (
-          <p className="text-red-500 text-[14px] font-medium">{error}</p>
-        )}
+        {error && <p className="text-red-500 text-[14px] font-medium">{error}</p>}
 
         {/* Result Panel */}
         {result && (
           <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-2 border border-black/5">
             <div className="flex items-center justify-between">
-              <h4 className="text-[16px] font-bold text-[#1A1A1A]">Gemini Vision Result</h4>
+              <h4 className="text-[16px] font-bold text-[#1A1A1A]">Result</h4>
               <span className={`text-[14px] font-bold ${severityColor(result.severity)}`}>
                 Severity {result.severity}/10
               </span>
             </div>
             <p className="text-[14px] text-[#444] leading-[1.5]">{result.description}</p>
-            <div className="flex gap-4 mt-1 flex-wrap">
-              <span className="text-[13px] font-semibold text-[#1A1A1A]">
-                {result.smoke_detected ? "🔥 Smoke detected" : "✅ No smoke"}
+            
+            <div className="flex gap-4 mt-1.5 flex-wrap items-center">
+              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
+                {result.smoke_detected ? (
+                  <>
+                    <svg className="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.319.771-.693 1.74-1.085 2.587L6.9 9.387a1 1 0 00-.111.41v5.3a2 2 0 002 2h6.07a2 2 0 001.993-1.81l.663-7.29A1 1 0 0016.52 7.07l-3.32-.228 1.194-4.29z" clipRule="evenodd" />
+                    </svg>
+                    <span>Smoke detected</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <span>No smoke</span>
+                  </>
+                )}
               </span>
+              
               <span className="text-[13px] font-semibold text-[#1A1A1A]">
                 Type: <span className="font-medium text-[#555]">{result.pollution_type}</span>
               </span>
