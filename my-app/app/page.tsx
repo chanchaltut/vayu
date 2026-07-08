@@ -1,11 +1,20 @@
-import MapComponent from "@/components/maps/MapComponent";
+import Navbar from "@/components/navigation/Navbar";
+import AiPrediction from "@/components/sections/AiPrediction";
+import CitizenUpload from "@/components/sections/CitizenUpload";
+import Footer from "@/components/sections/Footer";
+import Hero from "@/components/sections/Hero";
+import Municipality from "@/components/sections/Municipality";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <MapComponent />
-      </main>
-    </div>
+    <main className="flex flex-col w-full min-h-screen relative">
+      <Navbar />
+
+      <Hero />
+      <CitizenUpload />
+      <AiPrediction />
+      <Municipality />
+      <Footer />
+    </main>
   );
 }

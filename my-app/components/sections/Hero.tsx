@@ -1,0 +1,110 @@
+import Image from "next/image";
+import LanguageToggle from "@/components/buttons/LanguageToggle";
+import AqiCard from "@/components/cards/AqiCard";
+import WeeklyForecast from "@/components/cards/WeeklyForecast";
+import CurrentTemp from "@/components/temperature/CurrentTemp";
+import CloudLogo from "@/components/texts/CloudLogo";
+import HeroGreeting from "@/components/texts/HeroGreeting";
+
+export default function Hero() {
+  return (
+    <section className="relative min-h-screen w-full bg-hero-gradient overflow-hidden flex flex-col">
+      <div className="absolute inset-0 bg-grid-pattern pointer-events-none"></div>
+
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute top-20 left-30 w-10 h-10 bg-white/30 backdrop-blur-sm shadow-[0_0_20px_4px_rgba(255,255,255,0.4)] animate-twinkle"
+          style={{ animationDelay: "0s" }}
+        ></div>
+        <div
+          className="absolute top-41 left-21 w-8 h-8 bg-white/20 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle"
+          style={{ animationDelay: "0.2s" }}
+        ></div>
+        <div
+          className="absolute top-60 left-50 w-10 h-10 bg-white/25 shadow-[0_0_16px_3px_rgba(255,255,255,0.35)] animate-twinkle"
+          style={{ animationDelay: "0.4s" }}
+        ></div>
+        <div
+          className="absolute top-42 left-72 w-6 h-6 bg-white/15 shadow-[0_0_10px_2px_rgba(255,255,255,0.25)] animate-twinkle"
+          style={{ animationDelay: "0.6s" }}
+        ></div>
+        <div
+          className="absolute top-80 left-10 w-10 h-10 bg-white/20 shadow-[0_0_16px_3px_rgba(255,255,255,0.3)] animate-twinkle"
+          style={{ animationDelay: "0.8s" }}
+        ></div>
+        <div
+          className="absolute top-91 left-51 w-8 h-8 bg-white/15 shadow-[0_0_12px_2px_rgba(255,255,255,0.25)] animate-twinkle"
+          style={{ animationDelay: "0s" }}
+        ></div>
+        <div
+          className="absolute top-21 left-115 -translate-x-1/2 w-8 h-8 bg-white/20 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle"
+          style={{ animationDelay: "0.2s" }}
+        ></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white/10 shadow-[0_0_10px_2px_rgba(255,255,255,0.2)]"></div>
+        <div
+          className="absolute top-11 right-21 w-8 h-8 bg-white/25 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle"
+          style={{ animationDelay: "0.4s" }}
+        ></div>
+        <div
+          className="absolute top-30 right-50 w-10 h-10 bg-white/20 shadow-[0_0_16px_3px_rgba(255,255,255,0.3)] animate-twinkle"
+          style={{ animationDelay: "0.6s" }}
+        ></div>
+        <div
+          className="absolute top-50 right-10 w-10 h-10 bg-white/25 shadow-[0_0_16px_3px_rgba(255,255,255,0.35)] animate-twinkle"
+          style={{ animationDelay: "0.8s" }}
+        ></div>
+        <div
+          className="absolute top-72 right-42 w-6 h-6 bg-white/15 shadow-[0_0_10px_2px_rgba(255,255,255,0.25)] animate-twinkle"
+          style={{ animationDelay: "0s" }}
+        ></div>
+        <div
+          className="absolute top-91 right-71 w-8 h-8 bg-white/15 shadow-[0_0_12px_2px_rgba(255,255,255,0.25)] animate-twinkle"
+          style={{ animationDelay: "0.2s" }}
+        ></div>
+      </div>
+
+      <div className="relative z-10 flex-1 flex flex-col justify-between w-full max-w-8xl mx-auto p-10 lg:p-16">
+        {/* --- TOP HALF: Navbar + Greeting/Temp --- */}
+        <div className="flex flex-col gap-12">
+          {/* 1. Top Navbar Area */}
+          <div className="w-full flex justify-between items-center h-16 relative z-20">
+            <div className="w-37 -mt-26 flex justify-start">
+              <LanguageToggle />
+            </div>
+            {/* The actual Navbar is no longer rendered here in the flex flow. 
+                It is floating globally. But we leave this empty div to maintain 
+                the flex justify-between spacing for the Logo and Language toggle. */}
+            <div className="flex-1"></div>
+
+            <div className="w-37 -mt-16 flex justify-end">
+              <CloudLogo />
+            </div>
+          </div>
+          {/* 2. Greeting (Left) and Current Temp (Right) */}
+          <div className="w-full flex justify-between relative z-10 pointer-events-none">
+            <HeroGreeting />
+            <CurrentTemp />
+          </div>
+        </div>
+
+        {/* --- CENTER FLOAT: Sun Cloud (Remains absolutely positioned) --- */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <Image
+            src="/assets/SunCloud.png"
+            alt="Sun and Cloud"
+            width={379}
+            height={285}
+            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto"
+            priority
+          />
+        </div>
+
+        {/* --- BOTTOM HALF: AQI Card (Left) + Weekly Forecast (Right) --- */}
+        <div className="w-full flex justify-between items-end">
+          <AqiCard />
+          <WeeklyForecast />
+        </div>
+      </div>
+    </section>
+  );
+}
