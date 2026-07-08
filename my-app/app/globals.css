@@ -24,3 +24,48 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer utilities {
+  .bg-hero-gradient {
+    background: linear-gradient(
+      117.3deg,
+      rgba(252, 140, 60, 0.73) 9.06%,
+      rgba(255, 196, 142, 0.72) 31.05%,
+      rgba(253, 223, 183, 0.79) 47.47%,
+      rgba(228, 181, 137, 0.86) 64.62%,
+      rgba(252, 140, 60, 0.83) 93.42%
+    );
+  }
+  
+  .bg-grid-pattern {
+    background-size: 40px 40px;
+    background-image:
+      linear-gradient(to right, rgba(255, 142, 61, 0.35) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 142, 61, 0.35) 1px, transparent 1px);
+
+    /* Fade grid from top (visible) to bottom (invisible) */
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
+    mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
+  }
+
+  .bg-white-grid {
+    background-color: #ffffff;
+    /* Grid size matching Figma */
+    background-size: 64px 64px;
+    /* Using #EBEBEB for the lines, exactly 1px thick */
+    background-image:
+      linear-gradient(to right, #EBEBEB 1px, transparent 1px),
+      linear-gradient(to bottom, #EBEBEB 1px, transparent 1px);
+    /* We want the lines visible everywhere, so DO NOT use -webkit-mask-image here.
+      The solid white background-color will naturally hide whatever is behind this section.
+    */
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+  }
+  .animate-twinkle {
+    animation: twinkle 3s ease-in-out infinite;
+  }
+}
