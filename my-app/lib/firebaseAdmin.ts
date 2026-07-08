@@ -6,7 +6,7 @@ import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getStorage, Storage } from "firebase-admin/storage";
 
-function getAdminApp(): App {
+function getAdminApp(): App | undefined {
   if (getApps().length > 0) {
     return getApps()[0];
   }
@@ -16,9 +16,8 @@ function getAdminApp(): App {
   const privateKey  = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(
-      "Missing Firebase Admin env vars. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in .env.local"
-    );
+    console.warn("⚠️ Firebase Admin environment variables not set. Deferring initialization.");
+    return undefined;
   }
 
   return initializeApp({
@@ -27,8 +26,9 @@ function getAdminApp(): App {
   });
 }
 
-const adminApp: App          = getAdminApp();
-const adminDb: Firestore     = getFirestore(adminApp);
-const adminStorage: Storage  = getStorage(adminApp);
+const app = getAdminApp();
+const adminApp = (app || {}) as App;
+const adminDb = (app ? getFirestore(app) : {}) as Firestore;
+const adminStorage = (app ? getStorage(app) : {}) as Storage;
 
 export { adminApp, adminDb, adminStorage };
