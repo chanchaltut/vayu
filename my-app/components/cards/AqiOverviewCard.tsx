@@ -23,7 +23,7 @@ export default function AqiOverviewCard({ readings = [] }: AqiOverviewCardProps)
     { label: "—", value: 40, highlighted: false },
     { label: "—", value: 50, highlighted: false },
     { label: "—", value: 60, highlighted: false },
-    { label: "—", value: 90, highlighted: true  },
+    { label: "—", value: 90, highlighted: true },
     { label: "—", value: 30, highlighted: false },
     { label: "—", value: 50, highlighted: false },
   ];
@@ -34,9 +34,21 @@ export default function AqiOverviewCard({ readings = [] }: AqiOverviewCardProps)
     <div className="w-140 h-100 bg-[#FAFAFA] rounded-3xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-black/6">
-        <h3 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight">AQI Overview</h3>
-        <button title="Menu" type="button" className="text-[#8C8C8C] cursor-pointer">
-          <Image src="/assets/Menu.svg" alt="Menu" width={28} height={28} className="w-7 h-auto" />
+        <h3 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight">
+          AQI Overview
+        </h3>
+        <button
+          title="Menu"
+          type="button"
+          className="text-[#8C8C8C] cursor-pointer"
+        >
+          <Image
+            src="/assets/Menu.svg"
+            alt="Menu"
+            width={28}
+            height={28}
+            className="w-7 h-auto"
+          />
         </button>
       </div>
 

@@ -25,15 +25,15 @@ export default function Hero() {
           const a = latest.aqi;
           setAqiLabel(
             a <= 50 ? "Good air quality" :
-            a <= 100 ? "Satisfactory air quality" :
-            a <= 200 ? "Moderate air quality" :
-            a <= 300 ? "Poor — harmful for sensitive groups" :
-            a <= 400 ? "Very poor — harmful for your body" :
-            "Severe — hazardous"
+              a <= 100 ? "Satisfactory air quality" :
+                a <= 200 ? "Moderate air quality" :
+                  a <= 300 ? "Poor — harmful for sensitive groups" :
+                    a <= 400 ? "Very poor — harmful for your body" :
+                      "Severe — hazardous"
           );
         }
       })
-      .catch(() => {/* keep defaults */});
+      .catch(() => {/* keep defaults */ });
   }, []);
 
   return (
@@ -70,9 +70,16 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* CENTER FLOAT */}
+        {/* --- CENTER FLOAT: Sun Cloud (Remains absolutely positioned) --- */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <Image src="/assets/SunCloud.png" alt="Sun and Cloud" width={379} height={285} className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto" priority />
+          <Image
+            src="/assets/SunCloud.png"
+            alt="Sun and Cloud"
+            width={379}
+            height={285}
+            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto"
+            priority
+          />
         </div>
 
         {/* BOTTOM HALF */}

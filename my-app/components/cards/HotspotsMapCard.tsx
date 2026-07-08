@@ -19,10 +19,10 @@ interface HotspotsMapCardProps {
 }
 
 const COLOUR_MAP: Record<string, string> = {
-  green:  "#22c55e",
+  green: "#22c55e",
   yellow: "#eab308",
   orange: "#f97316",
-  red:    "#ef4444",
+  red: "#ef4444",
   purple: "#a855f7",
 };
 
@@ -88,7 +88,7 @@ export default function HotspotsMapCard({ hotspots = [] }: HotspotsMapCardProps)
     };
 
     initMap();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotspots.length]);
 
   return (

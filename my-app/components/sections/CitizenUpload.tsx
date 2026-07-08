@@ -5,7 +5,10 @@ import InstructionCard from "../cards/InstructionCard";
 
 export default function CitizenUpload() {
   return (
-    <section className="relative w-full min-h-screen flex flex-col items-center pt-20 pb-8 overflow-hidden">
+    <section
+      id="upload-image"
+      className="relative w-full min-h-screen flex flex-col items-center pt-20 pb-8 overflow-hidden"
+    >
       {/* The Reusable White Grid Background */}
       <GridBackground />
 

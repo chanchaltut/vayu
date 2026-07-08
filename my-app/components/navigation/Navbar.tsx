@@ -53,10 +53,9 @@ export default function Navbar() {
           h-15 px-3
           rounded-full
           backdrop-blur-md transition-colors duration-500
-          ${
-            isScrolled
-              ? "bg-white/80 border border-black/10 shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
-              : "bg-white/10 border border-white/20 border-t-white/50 border-l-white/50 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.05),0_4px_12px_rgba(0,0,0,0.05)]"
+          ${isScrolled
+            ? "bg-white/80 border border-black/10 shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
+            : "bg-white/10 border border-white/20 border-t-white/50 border-l-white/50 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.05),0_4px_12px_rgba(0,0,0,0.05)]"
           }
         `}
       >

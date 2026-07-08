@@ -4,7 +4,10 @@ import BigCloudLogo from "@/components/texts/BigCloudLogo";
 
 export default function Footer() {
   return (
-    <footer className="relative w-full h-150 overflow-hidden bg-transparent">
+    <footer
+      id="contact"
+      className="relative w-full h-150 overflow-hidden bg-transparent"
+    >
       {/* NEW MAIN WRAPPER: Holds everything except the giant text */}
       <div className="relative w-full h-full flex flex-col justify-between z-10 pb-32">
         {/* 1. Background Grid */}
@@ -59,7 +62,6 @@ export default function Footer() {
           </div>
         </div>{" "}
       </div>{" "}
-
       {/* Giant "LET'S WORK TOGETHER" Text (Now absolutely positioned on top / z-20) */}
       <div className="absolute bottom-0 left-0 w-full flex justify-center items-end overflow-hidden mb-[-2%] z-20 pointer-events-none pt-28">
         <h1
