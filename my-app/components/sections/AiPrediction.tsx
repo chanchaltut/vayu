@@ -28,14 +28,31 @@ interface SensorReading {
   timestamp: string;
 }
 
-const weekTempData = [
-  { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
-  { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
-  { day: "Mon", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
-  { day: "Tue", icon: "/assets/RainCloud.png", temp: 10, isActive: false },
-  { day: "Wed", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
-  { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
-];
+interface ForecastCard {
+  day: string;
+  icon: string;
+  temp: number;
+  isActive: boolean;
+}
+
+function getWeatherIcon(code: number): string {
+  if (code === 0 || code === 1 || code === 2 || code === 3) {
+    return "/assets/SunCloud.png";
+  }
+  if (code >= 51 && code <= 67) {
+    return "/assets/RainCloud.png";
+  }
+  if (code >= 71 && code <= 77) {
+    return "/assets/SnowCloud.png";
+  }
+  if (code >= 80 && code <= 82) {
+    return "/assets/RainCloud.png";
+  }
+  if (code >= 95 && code <= 99) {
+    return "/assets/ThunderCloud.png";
+  }
+  return "/assets/SunCloud.png"; // default
+}
 
 export default function AiPrediction() {
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
@@ -43,6 +60,14 @@ export default function AiPrediction() {
   const [latestAqi, setLatestAqi] = useState<number | null>(null);
   const [latestTemp, setLatestTemp] = useState<number | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [forecastCards, setForecastCards] = useState<ForecastCard[]>([
+    { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
+    { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
+    { day: "Mon", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
+    { day: "Tue", icon: "/assets/RainCloud.png", temp: 10, isActive: false },
+    { day: "Wed", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
+    { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
+  ]);
 
   const fetchHotspots = async () => {
     try {
@@ -72,9 +97,39 @@ export default function AiPrediction() {
     }
   };
 
+  const fetchLiveForecast = async () => {
+    try {
+      const res = await fetch(
+        "https://api.open-meteo.com/v1/forecast?latitude=22.5726&longitude=88.3639&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata"
+      );
+      const data = await res.json();
+      const daily = data?.daily;
+      if (!daily?.time) return;
+
+      const mapped: ForecastCard[] = daily.time.slice(0, 6).map((timeStr: string, index: number) => {
+        const date = new Date(timeStr);
+        const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+        const temp = Math.round(daily.temperature_2m_max[index]);
+        const weatherCode = daily.weather_code[index];
+
+        return {
+          day: dayName,
+          icon: getWeatherIcon(weatherCode),
+          temp,
+          isActive: index === 0, // Make today's card active
+        };
+      });
+
+      setForecastCards(mapped);
+    } catch (err) {
+      console.error("Failed to fetch forecast cards", err);
+    }
+  };
+
   useEffect(() => {
     fetchHotspots();
     fetchReadings();
+    fetchLiveForecast();
   }, []);
 
   const handleDetect = async () => {
@@ -147,7 +202,7 @@ export default function AiPrediction() {
         {/* Bottom Row */}
         <div className="mt-8 w-full max-w-360 flex justify-between items-stretch">
           <div className="w-[45%] flex items-center justify-center gap-4">
-            {weekTempData.map((data) => (
+            {forecastCards.map((data) => (
               <WeeklyTemperatureCard
                 key={data.day}
                 day={data.day}

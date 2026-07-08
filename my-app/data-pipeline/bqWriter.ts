@@ -13,7 +13,7 @@ export interface SensorReadingRow {
   lon: number;
   temperature: number | null;
   aqi: number;
-  source: "arduino" | "citizen_photo";
+  source: "arduino" | "citizen_photo" | "satellite";
   timestamp: string;
 }
 
