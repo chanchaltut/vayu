@@ -31,21 +31,23 @@ body {
 
 @layer utilities {
   .bg-hero-gradient {
-    background: linear-gradient(
+    background: var(--hero-bg, linear-gradient(
       117.3deg,
       rgba(252, 140, 60, 0.73) 9.06%,
       rgba(255, 196, 142, 0.72) 31.05%,
       rgba(253, 223, 183, 0.79) 47.47%,
       rgba(228, 181, 137, 0.86) 64.62%,
       rgba(252, 140, 60, 0.83) 93.42%
-    );
+    ));
+    transition: background 1s ease-in-out;
   }
   
   .bg-grid-pattern {
     background-size: 40px 40px;
     background-image:
-      linear-gradient(to right, rgba(255, 142, 61, 0.35) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 142, 61, 0.35) 1px, transparent 1px);
+      linear-gradient(to right, var(--grid-color, rgba(255, 142, 61, 0.35)) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-color, rgba(255, 142, 61, 0.35)) 1px, transparent 1px);
+    transition: background-image 1s ease-in-out;
 
     /* Fade grid from top (visible) to bottom (invisible) */
     -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 75%);

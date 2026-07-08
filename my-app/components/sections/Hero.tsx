@@ -13,6 +13,54 @@ interface Coords {
   lon: number;
 }
 
+interface WeatherTheme {
+  bg: string;
+  grid: string;
+  illustration: string;
+}
+
+const THEMES: Record<string, WeatherTheme> = {
+  clear: {
+    bg: "linear-gradient(117.3deg, rgba(252, 140, 60, 0.73) 9.06%, rgba(255, 196, 142, 0.72) 31.05%, rgba(253, 223, 183, 0.79) 47.47%, rgba(228, 181, 137, 0.86) 64.62%, rgba(252, 140, 60, 0.83) 93.42%)",
+    grid: "rgba(255, 142, 61, 0.35)",
+    illustration: "/assets/SunCloud.png",
+  },
+  rainy: {
+    bg: "linear-gradient(117.3deg, rgba(58, 96, 115, 0.85) 9.06%, rgba(58, 123, 213, 0.8) 47.47%, rgba(44, 62, 80, 0.9) 100%)",
+    grid: "rgba(135, 206, 250, 0.35)",
+    illustration: "/assets/RainCloud.png",
+  },
+  stormy: {
+    bg: "linear-gradient(117.3deg, rgba(31, 28, 44, 0.9) 9.06%, rgba(146, 141, 171, 0.85) 50%, rgba(75, 19, 79, 0.9) 100%)",
+    grid: "rgba(186, 85, 211, 0.35)",
+    illustration: "/assets/ThunderCloud.png",
+  },
+  snowy: {
+    bg: "linear-gradient(117.3deg, rgba(131, 164, 212, 0.8) 9.06%, rgba(182, 251, 255, 0.85) 50%, rgba(240, 248, 255, 0.9) 100%)",
+    grid: "rgba(255, 255, 255, 0.5)",
+    illustration: "/assets/SnowCloud.png",
+  },
+};
+
+function getThemeKey(code: number): string {
+  if (code === 0 || code === 1 || code === 2 || code === 3) {
+    return "clear";
+  }
+  if (code >= 51 && code <= 67) {
+    return "rainy";
+  }
+  if (code >= 71 && code <= 77) {
+    return "snowy";
+  }
+  if (code >= 80 && code <= 82) {
+    return "rainy";
+  }
+  if (code >= 95 && code <= 99) {
+    return "stormy";
+  }
+  return "clear"; // default
+}
+
 function getWeatherDescription(code: number): string {
   if (code === 0) return "clear sky";
   if (code === 1 || code === 2 || code === 3) return "mainly clear and partly cloudy";
@@ -31,6 +79,9 @@ export default function Hero() {
   const [aqiLabel, setAqiLabel] = useState("Air quality data loading...");
   const [weatherDesc, setWeatherDesc] = useState("mainly clear and partly cloudy");
   
+  // Dynamic Climate themes
+  const [activeTheme, setActiveTheme] = useState<WeatherTheme>(THEMES.clear);
+
   // Geolocation states
   const [coords, setCoords] = useState<Coords>({ lat: 22.5726, lon: 88.3639 });
   const [locationName, setLocationName] = useState("Detecting location...");
@@ -50,10 +101,10 @@ export default function Hero() {
     }
   }, []);
 
-  // 2. Geolocation cascade (Browser, Photo upload storage, Hardware node position, IP Geolocation)
+  // 2. Geolocation cascade (Browser High Accuracy, Cache, Hardware Node, IP Fallback)
   useEffect(() => {
     const resolveLocation = async () => {
-      // Priority A: Check if browser geolocation is allowed
+      // Priority A: Try browser geolocation WITH HIGH ACCURACY ENABLED (fixes Kalyani vs Kolkata ISP routing)
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
@@ -61,14 +112,14 @@ export default function Hero() {
             const lon = position.coords.longitude;
             setCoords({ lat, lon });
             
-            // Reverse geocode via free Nominatim API
+            // Reverse geocode via free Nominatim API with accurate parameters
             try {
               const res = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
               );
               const data = await res.json();
               const addr = data?.address;
-              const place = addr?.city || addr?.town || addr?.suburb || addr?.village || addr?.state || "India";
+              const place = addr?.suburb || addr?.town || addr?.village || addr?.city_district || addr?.city || addr?.county || addr?.state || "India";
               setLocationName(`${place}, India`);
             } catch (e) {
               setLocationName("Your Location");
@@ -111,8 +162,13 @@ export default function Hero() {
               }
             } catch (e) {}
 
-            // Default
+            // Fallback default
             setLocationName("Kolkata, India");
+          },
+          {
+            enableHighAccuracy: true, // Forces precise GPS/WiFi geolocation over ISP IP routing hubs
+            timeout: 5000,
+            maximumAge: 0
           }
         );
       }
@@ -121,7 +177,7 @@ export default function Hero() {
     resolveLocation();
   }, []);
 
-  // 3. Fetch real meteorological data for the coordinates resolved
+  // 3. Fetch real meteorological data & map climate visual themes
   useEffect(() => {
     const fetchWeatherAndAqi = async () => {
       try {
@@ -134,7 +190,12 @@ export default function Hero() {
           setTemperature(Math.round(weatherJson.current.temperature_2m));
         }
         if (weatherJson?.current?.weather_code != null) {
-          setWeatherDesc(getWeatherDescription(weatherJson.current.weather_code));
+          const code = weatherJson.current.weather_code;
+          setWeatherDesc(getWeatherDescription(code));
+          
+          // Select visual weather template dynamically
+          const themeKey = getThemeKey(code);
+          setActiveTheme(THEMES[themeKey]);
         }
 
         // Fetch satellite-derived Air Quality
@@ -163,7 +224,13 @@ export default function Hero() {
   }, [coords]);
 
   return (
-    <section className="relative min-h-screen w-full bg-hero-gradient overflow-hidden flex flex-col">
+    <section 
+      className="relative min-h-screen w-full bg-hero-gradient overflow-hidden flex flex-col transition-all duration-1000"
+      style={{
+        "--hero-bg": activeTheme.bg,
+        "--grid-color": activeTheme.grid,
+      } as React.CSSProperties}
+    >
       <div className="absolute inset-0 bg-grid-pattern pointer-events-none"></div>
 
       <div className="absolute inset-0 pointer-events-none">
@@ -199,11 +266,11 @@ export default function Hero() {
         {/* --- CENTER FLOAT: Sun Cloud (Remains absolutely positioned) --- */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Image
-            src="/assets/SunCloud.png"
-            alt="Sun and Cloud"
+            src={activeTheme.illustration}
+            alt="Climate Illustration"
             width={379}
             height={285}
-            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto"
+            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto transition-all duration-1000 animate-float"
             priority
           />
         </div>
