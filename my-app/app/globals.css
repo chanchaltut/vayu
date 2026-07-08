@@ -86,4 +86,12 @@ body {
   .animate-twinkle {
     animation: twinkle 3s ease-in-out infinite;
   }
+
+  /* Hide Next.js dev indicator elements & portals */
+  #nextjs-portal,
+  [data-nextjs-toast],
+  .nextjs-static-indicator,
+  #role-dev-indicator {
+    display: none !important;
+  }
 }

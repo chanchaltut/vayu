@@ -6,7 +6,9 @@ export default function Navbar() {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
 
+  // Scroll visibility & background style update handler
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -29,6 +31,30 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY]);
+
+  // Scroll Spy to dynamically highlight active section inside Navbar capsules
+  useEffect(() => {
+    const sections = ["home", "report", "detect", "act", "team"];
+    
+    const handleScrollSpy = () => {
+      const scrollPos = window.scrollY + 200; // Offset triggers highlight slightly early
+
+      for (const section of sections) {
+        const el = document.getElementById(section);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPos >= top && scrollPos < top + height) {
+            setActiveSection(section);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScrollSpy, { passive: true });
+    return () => window.removeEventListener("scroll", handleScrollSpy);
+  }, []);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -57,11 +83,11 @@ export default function Navbar() {
           }
         `}
       >
-        <NavButton label="Home" isScrolled={isScrolled} onClick={() => scrollToSection("home")} />
-        <NavButton label="Report" isScrolled={isScrolled} onClick={() => scrollToSection("report")} />
-        <NavButton label="Detect" isScrolled={isScrolled} onClick={() => scrollToSection("detect")} />
-        <NavButton label="Act" isScrolled={isScrolled} onClick={() => scrollToSection("act")} />
-        <NavButton label="Team" isDark={true} isScrolled={isScrolled} onClick={() => scrollToSection("team")} />
+        <NavButton label="Home" isDark={activeSection === "home"} isScrolled={isScrolled} onClick={() => scrollToSection("home")} />
+        <NavButton label="Report" isDark={activeSection === "report"} isScrolled={isScrolled} onClick={() => scrollToSection("report")} />
+        <NavButton label="Detect" isDark={activeSection === "detect"} isScrolled={isScrolled} onClick={() => scrollToSection("detect")} />
+        <NavButton label="Act" isDark={activeSection === "act"} isScrolled={isScrolled} onClick={() => scrollToSection("act")} />
+        <NavButton label="Team" isDark={activeSection === "team"} isScrolled={isScrolled} onClick={() => scrollToSection("team")} />
       </nav>
     </div>
   );
