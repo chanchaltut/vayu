@@ -117,9 +117,6 @@ export default function HotspotsMapCard({
         <h3 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight">
           Hotspots {hotspots.length > 0 && <span className="text-orange-500 text-[18px]">({hotspots.length})</span>}
         </h3>
-        <button title="Menu" type="button" className="text-[#8C8C8C] cursor-pointer">
-          <Image src="/assets/Menu.svg" alt="Menu" width={28} height={28} className="w-7 h-auto object-contain" />
-        </button>
       </div>
 
       {/* Map */}

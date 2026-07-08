@@ -24,7 +24,7 @@ interface Hotspot {
 
 interface SensorReading {
   aqi: number;
-  temperature: number;
+  temperature?: number;
   timestamp: string;
 }
 
@@ -137,7 +137,7 @@ export default function AiPrediction() {
     resolveLocation();
   }, []);
 
-  // 2. Fetch hotspots and sensor readings
+  // 2. Fetch hotspots
   const fetchHotspots = async () => {
     try {
       const res = await fetch("/api/hotspots");
@@ -148,18 +148,41 @@ export default function AiPrediction() {
     }
   };
 
+  // 3. Fetch readings (from BigQuery table or fallback dynamically to live hourly satellite AQI for current city)
   const fetchReadings = async () => {
     try {
       const res = await fetch("/api/sensors");
       const json = await res.json();
-      const data: SensorReading[] = json?.data?.readings ?? [];
+      let data: SensorReading[] = json?.data?.readings ?? [];
+      
+      // Dynamic Fallback: If BigQuery holds no readings, fetch live hourly satellite AQI values for coords
+      if (data.length === 0) {
+        const aqRes = await fetch(
+          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&hourly=us_aqi&timezone=Asia/Kolkata`
+        );
+        const aqJson = await aqRes.json();
+        const hourlyAqi = aqJson?.hourly?.us_aqi;
+        const hourlyTime = aqJson?.hourly?.time;
+        if (hourlyAqi && hourlyTime) {
+          // Take the last 7 hours of historical readings to represent the AQI trend
+          const endIndex = hourlyAqi.length;
+          const startIndex = Math.max(0, endIndex - 7);
+          const slicedAqi = hourlyAqi.slice(startIndex, endIndex);
+          const slicedTime = hourlyTime.slice(startIndex, endIndex);
+          
+          data = slicedAqi.map((aqiVal: number, idx: number) => ({
+            aqi: aqiVal,
+            timestamp: slicedTime[idx],
+          }));
+        }
+      }
       setReadings(data);
     } catch (e) {
       console.error("Failed to fetch sensor readings", e);
     }
   };
 
-  // 3. Fetch weather temperature / AQI for resolved geolocated coordinates
+  // 4. Fetch weather temperature / AQI for resolved geolocated coordinates
   useEffect(() => {
     const fetchLocalStats = async () => {
       try {
@@ -188,7 +211,7 @@ export default function AiPrediction() {
     fetchLocalStats();
   }, [coords]);
 
-  // 4. Fetch dynamic weekly weather forecast cards for coordinates
+  // 5. Fetch dynamic weekly weather forecast cards for coordinates
   useEffect(() => {
     const fetchLiveForecast = async () => {
       try {
@@ -230,6 +253,10 @@ export default function AiPrediction() {
       if (json.success) {
         // Refetch everything to update the views instantly
         await Promise.all([fetchHotspots(), fetchReadings()]);
+        
+        // Dispatch custom event to auto-refresh the Municipality cards
+        window.dispatchEvent(new Event("vayu_hotspots_updated"));
+
         setToast({
           message: `Hotspot detection complete! Identified ${json.data.hotspots_detected} active cells.`,
           type: "success",
