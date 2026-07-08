@@ -6,11 +6,11 @@ export default function DeformedContainer() {
       {/* 1. Background Layer: Using your SVG directly */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/assets/Municipality.png"
-          alt="Municipality Building"
+          src="/assets/Hero Card.svg"
+          alt="Background shape"
           fill
-          sizes="520px"
-          className="object-cover"
+          className="object-fill"
+          priority
         />
       </div>
 

@@ -33,14 +33,12 @@ export default function WeeklyTemperatureCard({
         {day}
       </span>
 
-      {/* Weather Icon (Assuming you have colorful active icons and white/monochrome inactive ones) */}
-      <div className="relative w-12 h-12">
-        <Image
+      {/* Weather Icon */}
+      <div className="relative w-12 h-12 flex items-center justify-center">
+        <img
           src={icon}
           alt={`${day} weather`}
-          fill
-          sizes="48px"
-          className={`object-contain`} // Optional: grays out inactive icons if you don't have separate assets
+          className="w-12 h-12 object-contain"
         />
       </div>
 

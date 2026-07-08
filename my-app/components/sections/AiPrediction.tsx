@@ -40,44 +40,69 @@ const weekTempData = [
 export default function AiPrediction() {
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [readings, setReadings] = useState<SensorReading[]>([]);
-  const [latestAqi, setLatestAqi] = useState<number>(0);
-  const [latestTemp, setLatestTemp] = useState<number>(0);
+  const [latestAqi, setLatestAqi] = useState<number | null>(null);
+  const [latestTemp, setLatestTemp] = useState<number | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+
+  const fetchHotspots = async () => {
+    try {
+      const res = await fetch("/api/hotspots");
+      const json = await res.json();
+      setHotspots(json?.data?.hotspots ?? []);
+    } catch (e) {
+      console.error("Failed to fetch hotspots", e);
+    }
+  };
+
+  const fetchReadings = async () => {
+    try {
+      const res = await fetch("/api/sensors");
+      const json = await res.json();
+      const data: SensorReading[] = json?.data?.readings ?? [];
+      setReadings(data);
+
+      if (data.length > 0) {
+        setLatestAqi(data[0].aqi);
+        setLatestTemp(
+          data[0].temperature != null ? Math.round(data[0].temperature) : null
+        );
+      }
+    } catch (e) {
+      console.error("Failed to fetch sensor readings", e);
+    }
+  };
 
   useEffect(() => {
-    // Fetch hotspots
-    fetch("/api/hotspots")
-      .then((r) => r.json())
-      .then((json) => setHotspots(json?.data?.hotspots ?? []))
-      .catch(() => { });
-
-    // Fetch recent sensor readings
-    fetch("/api/sensors")
-      .then((r) => r.json())
-      .then((json) => {
-        const data: SensorReading[] = json?.data?.readings ?? [];
-
-        setReadings(data);
-
-        if (data.length > 0) {
-          setLatestAqi(data[0].aqi);
-
-          setLatestTemp(
-            data[0].temperature != null
-              ? Math.round(data[0].temperature)
-              : 0
-          );
-        }
-      })
-      .catch(() => { });
+    fetchHotspots();
+    fetchReadings();
   }, []);
 
+  const handleDetect = async () => {
+    setIsDetecting(true);
+    try {
+      const res = await fetch("/api/detect-hotspots", { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        // Refetch everything to update the views instantly
+        await Promise.all([fetchHotspots(), fetchReadings()]);
+      } else {
+        alert("Hotspot detection failed. Make sure you have ingested sensor data first.");
+      }
+    } catch (err) {
+      console.error("Error triggering hotspot detection", err);
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
   const topReasoning =
-    hotspots[0]?.reasoning ??
-    "AI is analysing data — run hotspot detection to populate this.";
+    hotspots.length > 0
+      ? hotspots[0].reasoning
+      : "AI is analysing data — run hotspot detection to populate this.";
 
   return (
     <section
-      id="ai-prediction"
+      id="detect"
       className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden"
     >
       {/* Background */}
@@ -96,17 +121,17 @@ export default function AiPrediction() {
             <div className="flex items-center justify-between w-full">
               <CountCard
                 label="Temperature"
-                value={latestTemp ? `${latestTemp}°C` : "—"}
+                value={latestTemp != null ? `${latestTemp}°C` : "—"}
               />
 
               <CountCard
                 label="AQI"
-                value={latestAqi || "—"}
+                value={latestAqi != null ? latestAqi : "—"}
               />
 
               <CountCard
                 label="Hotspots"
-                value={hotspots.length || "—"}
+                value={hotspots.length}
               />
             </div>
 
@@ -120,8 +145,8 @@ export default function AiPrediction() {
         </div>
 
         {/* Bottom Row */}
-        <div className="mt-8 w-full max-w-360 flex justify-between items-end">
-          <div className="w-[45%] flex items-end justify-center gap-4">
+        <div className="mt-8 w-full max-w-360 flex justify-between items-stretch">
+          <div className="w-[45%] flex items-center justify-center gap-4">
             {weekTempData.map((data) => (
               <WeeklyTemperatureCard
                 key={data.day}
@@ -133,8 +158,12 @@ export default function AiPrediction() {
             ))}
           </div>
 
-          <div className="w-[40%]">
-            <TextDescriptionCard reasoning={topReasoning} />
+          <div className="w-[40%] flex">
+            <TextDescriptionCard
+              reasoning={topReasoning}
+              onDetect={handleDetect}
+              isDetecting={isDetecting}
+            />
           </div>
         </div>
       </div>
