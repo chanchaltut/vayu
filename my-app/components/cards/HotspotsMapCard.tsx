@@ -10,6 +10,8 @@ interface HotspotsMapCardProps {
   hotspots: Hotspot[];
   centerLat: number;
   centerLon: number;
+  /** Full-page use (/map): no card header, the page provides its own. */
+  standalone?: boolean;
 }
 
 export const COLOUR_MAP: Record<string, string> = {
@@ -74,7 +76,7 @@ function infoContent(hs: Hotspot, labels: { severity: string; recommended: strin
   return root;
 }
 
-export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: HotspotsMapCardProps) {
+export default function HotspotsMapCard({ hotspots, centerLat, centerLon, standalone = false }: HotspotsMapCardProps) {
   const { t } = useI18n();
   const key = mapsKey();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -177,7 +179,7 @@ export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: Hots
 
   return (
     <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-3xl bg-[#FAFAFA] shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
-      <div className="flex shrink-0 items-center justify-between border-b border-black/6 px-4 py-3.5 sm:px-6 sm:py-4">
+      <div className={`${standalone ? "hidden" : "flex"} shrink-0 items-center justify-between border-b border-black/6 px-4 py-3.5 sm:px-6 sm:py-4`}>
         <h3 className="text-[19px] font-bold tracking-tight text-[#1A1A1A] sm:text-[22px]">
           {t.detect.mapTitle} {hotspots.length > 0 && <span className="text-[16px] text-orange-500 sm:text-[18px]">({hotspots.length})</span>}
         </h3>

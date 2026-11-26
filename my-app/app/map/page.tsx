@@ -46,8 +46,9 @@ export default function MapPage() {
           ))}
         </div>
       </header>
-      <div className="flex flex-1 p-2 sm:p-4 [&>div]:min-h-[calc(100svh-120px)]">
-        <HotspotsMapCard hotspots={hotspots} centerLat={center.lat} centerLon={center.lon} />
+      {/* Definite height so the map (and its fallback) can fill the screen. */}
+      <div className="h-[calc(100svh-132px)] min-h-[360px] p-2 sm:h-[calc(100svh-80px)] sm:p-4">
+        <HotspotsMapCard hotspots={hotspots} centerLat={center.lat} centerLon={center.lon} standalone />
       </div>
     </main>
   );
