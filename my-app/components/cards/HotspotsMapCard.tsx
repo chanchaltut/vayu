@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { useI18n } from "@/lib/i18n";
@@ -21,6 +21,35 @@ export const COLOUR_MAP: Record<string, string> = {
 };
 
 let optionsSet = false;
+
+// ── Google Maps health ────────────────────────────────────────────────────────
+// Google reports key/referrer problems through window.gm_authFailure, but a
+// project without billing only injects a "can't load Google Maps correctly"
+// dialog (.dismissButton) into the map element. Either way we switch every map
+// on the page to OpenStreetMap and remember it for the rest of the session.
+const BROKEN_KEY = "vayu_maps_unavailable";
+const BROKEN_EVENT = "vayu_maps_unavailable";
+
+function markMapsBroken(reason: string) {
+  try {
+    sessionStorage.setItem(BROKEN_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+  console.warn("[map] Google Maps unavailable, using OpenStreetMap:", reason);
+  window.dispatchEvent(new Event(BROKEN_EVENT));
+}
+function subscribeBroken(cb: () => void) {
+  window.addEventListener(BROKEN_EVENT, cb);
+  return () => window.removeEventListener(BROKEN_EVENT, cb);
+}
+function mapsBrokenSnapshot() {
+  try {
+    return sessionStorage.getItem(BROKEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 /** Builds the info-window body with DOM nodes so AI-written text can't inject HTML. */
 function infoContent(hs: Hotspot, labels: { severity: string; recommended: string; directions: string; category: string }) {
@@ -53,11 +82,24 @@ export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: Hots
   const markers = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const userMarker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(!key);
+  const [loadError, setLoadError] = useState(false);
+  const broken = useSyncExternalStore(subscribeBroken, mapsBrokenSnapshot, () => false);
+  const failed = !key || loadError || broken;
 
   // Create the map once.
   useEffect(() => {
-    if (!key || !mapRef.current || mapObj.current) return;
+    const el = mapRef.current;
+    if (!key || broken || !el || mapObj.current) return;
+
+    (window as unknown as { gm_authFailure?: () => void }).gm_authFailure = () => markMapsBroken("authentication failure");
+    const watcher = new MutationObserver(() => {
+      if (el.querySelector(".dismissButton, .gm-err-container")) {
+        watcher.disconnect();
+        markMapsBroken("error dialog (billing or key restriction)");
+      }
+    });
+    watcher.observe(el, { childList: true, subtree: true });
+
     if (!optionsSet) {
       setOptions({ key, v: "weekly" });
       optionsSet = true;
@@ -78,11 +120,12 @@ export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: Hots
         setReady(true);
       } catch (e) {
         console.error("[map] failed to load Google Maps", e);
-        setFailed(true);
+        setLoadError(true);
       }
     })();
+    return () => watcher.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, broken]);
 
   // Recentre + user pin when the location changes.
   useEffect(() => {
