@@ -1,0 +1,63 @@
+# VAYU — full description
+
+> VAYU (https://vayuai.vercel.app) is a hyper-local air pollution and anomaly detection platform for Kolkata and India, built by team Doomsday for the Google Cloud hackathon, Track 2: CleanAir & Clear Streets.
+
+## The problem
+
+City-wide air quality apps rely on a few sparse monitoring stations. They miss street-level events such as garbage fires, industrial smoke or heavy local congestion.
+
+## How VAYU works
+
+1. Citizen reports — residents photograph smoke, burning waste or dust. Gemini Vision returns a structured verdict: smoke/dust detected, pollution type, severity 0–10, estimated AQI impact and confidence. The report is stored with its GPS location.
+2. IoT sensors — Arduino Uno + ESP8266 nodes with an MQ135 gas sensor and a TMP36 temperature sensor post readings over HTTPS.
+3. Satellite data — current and hourly US AQI from Copernicus CAMS (via Open-Meteo) for the visitor's location, plus reference stations at Kolkata centre, Salt Lake, Bhowanipore and Howrah.
+4. Fusion — readings from the last 30 minutes are grouped into ~500 m grid cells. Gemini decides whether each cell is a hotspot, its severity, a 24-hour AQI prediction and the recommended municipal action. Hotspots are stored in Google BigQuery.
+5. Act — confirmed hotspots are listed by severity with exact coordinates and the recommended action. A municipal officer can send an SMS or WhatsApp alert (Hindi, English or both) through Twilio. Every alert is logged.
+
+## Pages and sections
+
+- Home (/#home): greeting, location, current temperature and weather, current AQI with category, next 5 days
+- Report (/#report): photo upload or camera capture, voice description, Gemini Vision result
+- Detect (/#detect): temperature, AQI and hotspot counts; AQI chart for past hours and the next 24 hours; hotspot map; Gemini analysis and "Run Hotspot Detection"
+- Act (/#act): top confirmed hotspots with directions and alert dispatch; count of alerts sent
+- FAQ (/#faq)
+- Team (/#team)
+- Live map (/map)
+
+## AQI categories used
+
+Good 0–50 · Satisfactory 51–100 · Moderate 101–200 · Poor 201–300 · Very poor 301–400 · Severe 401+
+
+## Frequently asked questions
+
+Q: What is VAYU?
+A: A neighbourhood-level air pollution map for India that combines citizen photo reports, low-cost IoT sensors and satellite air-quality data, using Google Gemini AI to find pollution hotspots street by street.
+
+Q: How do I report pollution in my area?
+A: Open the Report section, take a photo of the smoke, burning waste or dust, allow location access and submit. Gemini Vision analyses it within seconds and adds it to the hotspot map.
+
+Q: Where does the air quality data come from?
+A: Satellite-derived data from Copernicus CAMS via Open-Meteo, on the US AQI scale, plus VAYU sensor nodes and citizen reports when available.
+
+Q: Which areas does VAYU cover?
+A: It was built in West Bengal with its first stations around Kolkata, Salt Lake, Bhowanipore and Howrah. Live AQI, weather and forecasts work anywhere in India.
+
+Q: What happens after a hotspot is detected?
+A: It appears in the Act section with location, severity and a recommended action, and a municipal officer can dispatch an SMS or WhatsApp alert in one tap.
+
+Q: Who built VAYU?
+A: Team Doomsday: Chanchal Pradhan (backend), Partha Biswas (UI/UX and hardware), Ankit Gupta (frontend) and Sumit Mandi (machine learning).
+
+Q: Which languages does VAYU support?
+A: English, Hindi, Bengali, Odia, Gujarati, Marathi, Tamil, Telugu, Malayalam, Kannada, Punjabi and Assamese.
+
+## Technology
+
+Next.js on Vercel · Google Gemini 2.5 Flash (vision and text) · Google BigQuery · Firebase Storage · Google Maps JavaScript API · Open-Meteo · Twilio · Arduino Uno + ESP8266, MQ135, TMP36
+
+## Team Doomsday
+
+- Chanchal Pradhan — Backend Developer — https://github.com/chanchaltut — https://www.linkedin.com/in/chanchalpradhan
+- Partha Biswas — UI/UX Designer & Hardware Engineer — https://github.com/parttha06 — https://www.linkedin.com/in/partha-biswass
+- Ankit Gupta — Frontend Developer — https://github.com/ankitgupta74 — https://www.linkedin.com/in/ankitgupta74
+- Sumit Mandi — ML Engineer — https://github.com/verticeop — https://www.linkedin.com/in/sumit-mandi

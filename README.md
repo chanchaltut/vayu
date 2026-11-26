@@ -139,3 +139,18 @@ VAYU utilizes an Arduino Uno equipped with an ESP8266 serial transceiver to uplo
     npm run dev
     ```
     Open `http://localhost:3000` to preview the system.
+
+3.  **Frontend work without cloud credentials** (optional):
+    ```bash
+    VAYU_API_PROXY=https://vayuai.vercel.app npm run dev
+    ```
+    This forwards `/api/*` to the live deployment so the UI shows real data. Leave it unset to use the local route handlers.
+
+---
+
+## 🌐 Languages & Responsive Layout
+
+*   **Translations** live in `my-app/lib/i18n/locales/` — one file per language (`en.ts` is the source; `hi`, `bn`, `or`, `gu`, `mr`, `ta`, `te`, `ml`, `kn`, `pa`, `as`). Every file is typed against `en.ts`, so a missing key fails the build. Non-English files are loaded only when a visitor picks that language, and the choice is remembered. Components read strings with `const { t } = useI18n()`.
+*   **Adding a string:** add it to `en.ts`, run `npx tsc --noEmit`, and fill the key in each file it lists.
+*   **Layouts:** phones (< 768px) get a bottom tab bar and phone-specific section layouts; tablets (768–1023px) get two-column layouts; desktops (≥ 1024px) keep the original design.
+*   **Google Maps key:** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (or `NEXT_PUBLIC_GOOGLE_MAP_API_KEY`). Without it, the hotspot map falls back to OpenStreetMap.

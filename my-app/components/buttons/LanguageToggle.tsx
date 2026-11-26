@@ -1,207 +1,154 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-
-interface Language {
-  code: string;
-  label: string;
-  native: string;
-}
-
-const LANGUAGES: Language[] = [
-  { code: "en", label: "English", native: "En" },
-  { code: "hi", label: "Hindi", native: "हिन्दी" },
-  { code: "bn", label: "Bengali", native: "বাংলা" },
-  { code: "or", label: "Odia", native: "ଓଡ଼ିଆ" },
-  { code: "gu", label: "Gujarati", native: "ગુજરાતી" },
-  { code: "mr", label: "Marathi", native: "मराठी" },
-  { code: "ta", label: "Tamil", native: "தமிழ்" },
-  { code: "te", label: "Telugu", native: "తెలుగు" },
-  { code: "ml", label: "Malayalam", native: "മലയാളം" },
-  { code: "kn", label: "Kannada", native: "ಕನ್ನಡ" },
-  { code: "pa", label: "Punjabi", native: "ਪੰਜਾਬੀ" },
-  { code: "as", label: "Assamese", native: "অসমীয়া" },
-];
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { LANGUAGES, useI18n, type LangCode } from "@/lib/i18n";
 
 export default function LanguageToggle() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeLang, setActiveLang] = useState<Language>(LANGUAGES[0]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Initialize Google Translate Element
-  useEffect(() => {
-    (window as any).googleTranslateElementInit = () => {
-      new (window as any).google.translate.TranslateElement(
-        {
-          pageLanguage: "en",
-          includedLanguages: "en,hi,bn,or,gu,mr,ta,te,ml,kn,pa,as",
-          autoDisplay: false,
-        },
-        "google_translate_element"
-      );
-    };
-
-    if (!document.getElementById("google-translate-script")) {
-      const script = document.createElement("script");
-      script.id = "google-translate-script";
-      script.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
-      script.async = true;
-      document.body.appendChild(script);
-    }
-  }, []);
-
-  // 1. MutationObserver to intercept Google Translate injections and hide them dynamically
-  useEffect(() => {
-    const suppressGoogleBanner = () => {
-      // Find the Google Translate iframe elements
-      const banner =
-        document.querySelector("iframe.goog-te-banner-frame") ||
-        document.getElementById("goog-te-banner-frame") ||
-        document.querySelector(".goog-te-banner-frame");
-      if (banner) {
-        (banner as HTMLElement).style.setProperty("display", "none", "important");
-        (banner as HTMLElement).style.setProperty("visibility", "hidden", "important");
-        (banner as HTMLElement).style.setProperty("height", "0", "important");
-        (banner as HTMLElement).style.setProperty("opacity", "0", "important");
-      }
-
-      // Hide all Google Translate wrapper containers
-      const skipTranslateDivs = document.querySelectorAll(".skiptranslate");
-      skipTranslateDivs.forEach((div) => {
-        const htmlDiv = div as HTMLElement;
-        // Check if this skiptranslate element is the top bar container
-        if (
-          htmlDiv.style.top === "0px" ||
-          htmlDiv.style.zIndex === "10000000" ||
-          htmlDiv.innerHTML.includes("goog-te-banner-frame")
-        ) {
-          htmlDiv.style.setProperty("display", "none", "important");
-          htmlDiv.style.setProperty("visibility", "hidden", "important");
-          htmlDiv.style.setProperty("height", "0", "important");
-        }
-      });
-
-      // Force-reset HTML & Body top alignment shifts
-      document.body.style.setProperty("top", "0px", "important");
-      document.body.style.setProperty("position", "static", "important");
-      document.documentElement.style.setProperty("margin-top", "0px", "important");
-    };
-
-    const observer = new MutationObserver(suppressGoogleBanner);
-    observer.observe(document.body, { childList: true, subtree: true });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
-
-    // Initial check
-    suppressGoogleBanner();
-
-    return () => observer.disconnect();
-  }, []);
+  const { lang, setLang, t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || sheetRef.current?.contains(target)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
-  const handleLanguageChange = (lang: Language) => {
-    setActiveLang(lang);
-    setIsOpen(false);
-    localStorage.setItem("vayu_preferred_language", lang.code);
+  // Lock page scroll while the mobile sheet is open.
+  useEffect(() => {
+    if (!open || window.matchMedia("(min-width: 768px)").matches) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
-    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
-    if (select) {
-      select.value = lang.code;
-      select.dispatchEvent(new Event("change"));
-    }
-
-    // 2. High-frequency cleanup interval to override delayed styling calculations
-    let count = 0;
-    const interval = setInterval(() => {
-      document.body.style.setProperty("top", "0px", "important");
-      document.body.style.setProperty("position", "static", "important");
-      document.documentElement.style.setProperty("margin-top", "0px", "important");
-
-      const banner = document.querySelector("iframe.goog-te-banner-frame") as HTMLElement | null;
-      if (banner) {
-        banner.style.setProperty("display", "none", "important");
-      }
-
-      count++;
-      if (count > 25) clearInterval(interval);
-    }, 80);
+  const choose = (code: LangCode) => {
+    setLang(code);
+    setOpen(false);
   };
 
   return (
-    <div ref={dropdownRef} className="relative z-[9999]">
-      {/* Hidden container for Google Translate setup */}
-      <div id="google_translate_element" className="hidden" />
-
-      {/* Glassmorphic Dropdown Trigger */}
+    <div ref={rootRef} className="relative z-[60]">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="
-          flex items-center justify-between gap-2.5
-          min-w-28 h-12 px-5
-          rounded-full 
-          bg-white/30 backdrop-blur-md
-          border border-white/40 border-t-white/60 border-l-white/60
-          shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.08)]
-          hover:bg-white/45 transition-all duration-300 ease-in-out
-          cursor-pointer pointer-events-auto select-none
-        "
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${t.lang.label}: ${lang.label}`}
+        className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/40 border-t-white/60 border-l-white/60 bg-white/30 px-3.5 shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-300 hover:bg-white/45 md:h-12 md:px-5"
       >
-        <span className="text-white text-[17px] font-extrabold leading-none tracking-wide drop-shadow-sm truncate">
-          {activeLang.native}
+        <svg className="h-4 w-4 shrink-0 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z" />
+        </svg>
+        <span className="truncate text-[15px] font-bold leading-none tracking-wide text-white drop-shadow-sm md:text-[17px]">
+          {lang.code === "en" ? "En" : lang.native}
         </span>
         <svg
-          className={`w-4 h-4 text-white transition-transform duration-300 shrink-0 ${
-            isOpen ? "rotate-180" : "rotate-0"
-          }`}
+          className={`h-3.5 w-3.5 shrink-0 text-white transition-transform duration-300 ${open ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           strokeWidth="3"
           viewBox="0 0 24 24"
+          aria-hidden
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
         </svg>
       </button>
 
-      {/* High-Contrast Dropdown Menu */}
-      {isOpen && (
-        <div
-          className="
-            absolute top-14 left-0 w-46 max-h-68 overflow-y-auto 
-            rounded-2xl bg-white border border-black/10
-            shadow-[0_16px_40px_rgba(0,0,0,0.18)]
-            scrollbar-thin scrollbar-thumb-black/15
-            py-2 flex flex-col gap-0.5
-          "
-        >
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              type="button"
-              onClick={() => handleLanguageChange(lang)}
-              className={`
-                w-full text-left px-4 py-2 text-[14.5px] font-bold tracking-tight transition-colors duration-200 cursor-pointer
-                ${
-                  activeLang.code === lang.code
-                    ? "bg-black/10 text-black font-extrabold"
-                    : "text-[#1A1A1A] hover:bg-black/5 hover:text-black"
-                }
-              `}
-            >
-              <span className="mr-1">{lang.native}</span>
-              <span className="text-[11px] text-gray-500 font-bold truncate">
-                ({lang.label})
-              </span>
-            </button>
-          ))}
-        </div>
+      {open && (
+        <>
+          {/* Phone: dimmed backdrop + bottom sheet (portalled so it sits above the tab bar) */}
+          {createPortal(
+          <div ref={sheetRef}>
+          <div className="animate-fade fixed inset-0 z-[70] bg-black/40 backdrop-blur-[2px] md:hidden" onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            aria-label={t.lang.label}
+            className="animate-sheet pb-safe fixed inset-x-0 bottom-0 z-[80] rounded-t-[28px] bg-white px-5 pt-3 shadow-[0_-12px_40px_rgba(0,0,0,0.2)] md:hidden"
+          >
+            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-black/15" />
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[19px] font-bold tracking-tight text-[#1A1A1A]">{t.lang.label}</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-[#1A1A1A]"
+                aria-label={t.common.close}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pb-5">
+              {LANGUAGES.map((l) => {
+                const on = l.code === lang.code;
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    role="option"
+                    aria-selected={on}
+                    lang={l.code}
+                    onClick={() => choose(l.code)}
+                    className={`flex flex-col items-start rounded-2xl border px-4 py-3 text-left transition-colors ${
+                      on ? "border-[#1A1A1A] bg-[#1A1A1A] text-white" : "border-black/8 bg-[#F5F5F5] text-[#1A1A1A] active:bg-[#EBEBEB]"
+                    }`}
+                  >
+                    <span className="text-[17px] font-bold leading-tight">{l.native}</span>
+                    <span className={`text-[12px] font-medium ${on ? "text-white/70" : "text-[#8C8C8C]"}`}>{l.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          </div>,
+          document.body
+          )}
+
+          {/* Tablet / desktop: dropdown */}
+          <div
+            role="listbox"
+            aria-label={t.lang.label}
+            className="animate-fade absolute left-0 top-14 hidden max-h-80 w-52 flex-col gap-0.5 overflow-y-auto rounded-2xl border border-black/10 bg-white py-2 shadow-[0_16px_40px_rgba(0,0,0,0.18)] md:flex"
+          >
+            {LANGUAGES.map((l) => {
+              const on = l.code === lang.code;
+              return (
+                <button
+                  key={l.code}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  lang={l.code}
+                  onClick={() => choose(l.code)}
+                  className={`flex w-full items-center justify-between px-4 py-2 text-left text-[14.5px] font-bold tracking-tight transition-colors ${
+                    on ? "bg-black/10 text-black" : "text-[#1A1A1A] hover:bg-black/5"
+                  }`}
+                >
+                  <span>{l.native}</span>
+                  <span className="text-[11px] font-semibold text-gray-500">{l.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

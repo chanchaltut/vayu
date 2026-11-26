@@ -2,6 +2,22 @@
 
 html {
   scroll-behavior: smooth;
+  /* Keeps anchored sections clear of the fixed navbar. */
+  scroll-padding-top: 1rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 :root {
@@ -12,67 +28,55 @@ html {
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Inter for Latin, Noto for each Indic script (downloaded only when used). */
+  --font-sans: var(--font-inter), var(--font-noto-deva), var(--font-noto-beng), var(--font-noto-orya),
+    var(--font-noto-gujr), var(--font-noto-taml), var(--font-noto-telu), var(--font-noto-mlym),
+    var(--font-noto-knda), var(--font-noto-guru), ui-sans-serif, system-ui, sans-serif;
+  --breakpoint-xs: 380px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer utilities {
-  .bg-hero-gradient {
-    background: var(--hero-bg, linear-gradient(
-      117.3deg,
-      rgba(252, 140, 60, 0.73) 9.06%,
-      rgba(255, 196, 142, 0.72) 31.05%,
-      rgba(253, 223, 183, 0.79) 47.47%,
-      rgba(228, 181, 137, 0.86) 64.62%,
-      rgba(252, 140, 60, 0.83) 93.42%
-    ));
-    transition: background 1s ease-in-out;
-  }
-  
   .bg-grid-pattern {
     background-size: 40px 40px;
     background-image:
       linear-gradient(to right, var(--grid-color, rgba(255, 142, 61, 0.35)) 1px, transparent 1px),
       linear-gradient(to bottom, var(--grid-color, rgba(255, 142, 61, 0.35)) 1px, transparent 1px);
     transition: background-image 1s ease-in-out;
-
-    /* Fade grid from top (visible) to bottom (invisible) */
     -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
     mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
   }
 
   .bg-white-grid {
     background-color: #ffffff;
-    /* Grid size matching Figma */
     background-size: 64px 64px;
-    /* Using #EBEBEB for the lines, exactly 1px thick */
     background-image:
-      linear-gradient(to right, #EBEBEB 1px, transparent 1px),
-      linear-gradient(to bottom, #EBEBEB 1px, transparent 1px);
-    /* We want the lines visible everywhere, so DO NOT use -webkit-mask-image here.
-      The solid white background-color will naturally hide whatever is behind this section.
-    */
+      linear-gradient(to right, #ebebeb 1px, transparent 1px),
+      linear-gradient(to bottom, #ebebeb 1px, transparent 1px);
+  }
+  @media (max-width: 639px) {
+    .bg-white-grid {
+      background-size: 40px 40px;
+    }
+  }
+
+  .rainbow-border {
+    background: linear-gradient(135deg, #ff3b30 0%, #c200fb 25%, #005aff 50%, #00d604 80%, #ffcc00 100%);
   }
 
   @keyframes softFloat {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0);
     }
     50% {
-      transform: translateY(-12px); /* Moves up smoothly by 12 pixels */
+      transform: translateY(-12px);
     }
   }
   .animate-float {
@@ -80,41 +84,75 @@ body {
   }
 
   @keyframes twinkle {
-    0%, 100% { opacity: 0.8; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+      opacity: 0.8;
+    }
+    50% {
+      opacity: 1;
+    }
   }
   .animate-twinkle {
     animation: twinkle 3s ease-in-out infinite;
   }
 
-  /* Hide Next.js dev indicator elements & portals */
+  @keyframes toastIn {
+    from {
+      opacity: 0;
+      transform: translateY(-12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .animate-toast {
+    animation: toastIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  }
+
+  @keyframes sheetUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Hide Next.js dev indicator */
   #nextjs-portal,
   [data-nextjs-toast],
   .nextjs-static-indicator,
   #role-dev-indicator {
     display: none !important;
   }
+}
 
-  /* Hide Google Translate Banner and Widget completely */
-  .goog-te-banner-frame,
-  .goog-te-banner-frame\.skiptranslate,
-  .goog-te-banner,
-  .goog-te-gadget,
-  .goog-te-menu-value,
-  iframe.goog-te-banner-frame,
-  #google_translate_element,
-  #goog-gt-tt,
-  .goog-te-balloon-frame {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    opacity: 0 !important;
-  }
-  html {
-    margin-top: 0 !important;
-  }
-  body {
-    top: 0 !important;
-    position: static !important;
-  }
+/* Declared with @utility so responsive variants (md:animate-fade) work. */
+@utility animate-sheet {
+  animation: sheetUp 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@utility animate-fade {
+  animation: fadeIn 0.2s ease-out both;
 }

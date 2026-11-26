@@ -1,30 +1,22 @@
 interface CurrentTempProps {
-  temperature?: number;
+  temperature: number | null;
   description?: string;
 }
 
-export default function CurrentTemp({
-  temperature = 27,
-  description = "occasional showers and\nscattered thunderstorms",
-}: CurrentTempProps) {
+export default function CurrentTemp({ temperature, description = "" }: CurrentTempProps) {
   return (
-    <div className="flex flex-col items-start text-white select-none">
-      {/* Temperature Number & Symbol */}
+    <div className="flex select-none flex-col items-start text-white">
       <div className="flex items-start leading-[0.78]">
-        {/* The massive number */}
-        <span className="text-[300px] font-bold tracking-tighter m-0 p-0">
-          {temperature}
+        <span className="m-0 p-0 text-[112px] font-bold tracking-tighter tabular-nums xs:text-[128px] sm:text-[150px] md:text-[150px] lg:text-[220px] xl:text-[300px]">
+          {temperature ?? "--"}
         </span>
-        {/* The degree symbol, smaller and aligned to the top */}
-        <span className="text-[75px] font-normal mt-5 ml-1">°C</span>
+        <span className="ml-1 mt-2 text-[32px] font-normal md:mt-3 md:text-[40px] lg:mt-4 lg:text-[56px] xl:mt-5 xl:text-[75px]">
+          °C
+        </span>
       </div>
-
-      {/* Description Text aligned directly to the left edge of the massive number */}
-      <div className="text-left pl-1.5 mt-0">
-        <p className="text-[22px] font-medium leading-snug whitespace-pre-line opacity-95">
-          {description}
-        </p>
-      </div>
+      <p className="mt-2 min-h-[1.4em] max-w-[18rem] pl-1 text-[16px] font-medium leading-snug opacity-95 md:mt-0 md:max-w-xs md:text-[18px] lg:text-[22px]">
+        {description}
+      </p>
     </div>
   );
 }

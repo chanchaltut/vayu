@@ -1,123 +1,54 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import Link from "next/link";
+import HotspotsMapCard, { COLOUR_MAP } from "@/components/cards/HotspotsMapCard";
+import { useI18n } from "@/lib/i18n";
+import { useHotspots } from "@/lib/useHotspots";
 
-interface Hotspot {
-  id: string;
-  lat: number;
-  lon: number;
-  severity: number;
-  avg_aqi: number;
-  predicted_aqi_24h: number;
-  aqi_category: string;
-  action: string;
-  colour: string;
-  reasoning: string;
-}
-
-const COLOUR_MAP: Record<string, string> = {
-  green:  "#22c55e",
-  yellow: "#eab308",
-  orange: "#f97316",
-  red:    "#ef4444",
-  purple: "#a855f7",
-};
+const KOLKATA = { lat: 22.5726, lon: 88.3639 };
 
 export default function MapPage() {
-  const mapRef    = useRef<HTMLDivElement>(null);
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const { t } = useI18n();
+  const { hotspots, loaded } = useHotspots();
+  const center = hotspots[0] ? { lat: hotspots[0].lat, lon: hotspots[0].lon } : KOLKATA;
 
-  useEffect(() => {
-    fetch("/api/hotspots")
-      .then((r) => r.json())
-      .then((json) => {
-        setHotspots(json?.data?.hotspots ?? []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (loading || !mapRef.current) return;
-
-    setOptions({ key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!, v: "weekly" });
-
-    const initMap = async () => {
-      const { Map } = await importLibrary("maps") as google.maps.MapsLibrary;
-      const { AdvancedMarkerElement } = await importLibrary("marker") as google.maps.MarkerLibrary;
-
-      const center = hotspots.length > 0
-        ? { lat: hotspots[0].lat, lng: hotspots[0].lon }
-        : { lat: 28.6139, lng: 77.2090 };
-
-      const map = new Map(mapRef.current!, {
-        center,
-        zoom: 11,
-        mapId: "vayu_live_map",
-      });
-
-      hotspots.forEach((hs) => {
-        const color = COLOUR_MAP[hs.colour] ?? "#f97316";
-        const pin = document.createElement("div");
-        pin.style.cssText = `
-          width:36px;height:36px;border-radius:50%;
-          background:${color};border:3px solid white;
-          box-shadow:0 3px 10px rgba(0,0,0,0.4);
-          display:flex;align-items:center;justify-content:center;
-          color:white;font-size:13px;font-weight:800;cursor:pointer;
-        `;
-        pin.textContent = String(hs.severity);
-
-        const marker = new AdvancedMarkerElement({
-          position: { lat: hs.lat, lng: hs.lon },
-          map,
-          content: pin,
-          title: `AQI ${hs.avg_aqi}`,
-        });
-
-        const infoWindow = new google.maps.InfoWindow({
-          content: `
-            <div style="font-family:sans-serif;padding:6px 8px;max-width:260px;line-height:1.5">
-              <strong style="font-size:15px">AQI: ${hs.avg_aqi}</strong>
-              <span style="margin-left:8px;font-size:12px;color:#777">${hs.aqi_category}</span>
-              <hr style="margin:6px 0;border:none;border-top:1px solid #eee"/>
-              <p style="margin:0;font-size:12px"><b>Severity:</b> ${hs.severity}/10</p>
-              <p style="margin:4px 0;font-size:12px"><b>24h Forecast AQI:</b> ${hs.predicted_aqi_24h}</p>
-              <p style="margin:4px 0;font-size:12px"><b>Action:</b> ${hs.action}</p>
-              <p style="margin:4px 0;font-size:11px;color:#555">${hs.reasoning}</p>
-            </div>
-          `,
-        });
-        marker.addListener("gmp-click", () => infoWindow.open({ anchor: marker, map }));
-      });
-    };
-
-    initMap();
-  }, [loading, hotspots]);
+  const legend = [
+    ["yellow", t.aqiShort.moderate],
+    ["orange", t.aqiShort.poor],
+    ["red", t.aqiShort.severe],
+  ] as const;
 
   return (
-    <main className="flex flex-col w-full min-h-screen bg-gray-950">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-8 py-4 bg-gray-900 border-b border-white/10">
-        <div>
-          <h1 className="text-white text-2xl font-bold">🗺️ Live Hotspot Map</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            {loading ? "Loading hotspots..." : `${hotspots.length} active hotspot${hotspots.length !== 1 ? "s" : ""} detected`}
-          </p>
+    <main className="flex min-h-[100svh] w-full flex-col bg-[#0b0d10]">
+      <header className="flex flex-col gap-3 border-b border-white/10 bg-[#111418] px-4 py-3.5 pt-[max(env(safe-area-inset-top),14px)] sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/#detect"
+            aria-label="Back"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/15"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+              <path d="M15 18 9 12l6-6" />
+            </svg>
+          </Link>
+          <div>
+            <h1 className="text-[20px] font-bold text-white sm:text-2xl">VAYU · {t.detect.mapTitle}</h1>
+            <p className="mt-0.5 text-[13px] text-gray-400">
+              {!loaded ? "…" : hotspots.length === 0 ? t.detect.noHotspots : `${hotspots.length} ${t.detect.hotspots}`}
+            </p>
+          </div>
         </div>
-        <div className="flex gap-3 items-center">
-          {(["green","yellow","orange","red"] as const).map((c) => (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          {legend.map(([c, label]) => (
             <div key={c} className="flex items-center gap-1.5">
-              <div style={{ background: COLOUR_MAP[c] }} className="w-3 h-3 rounded-full" />
-              <span className="text-gray-300 text-xs capitalize">{c}</span>
+              <span style={{ background: COLOUR_MAP[c] }} className="h-3 w-3 rounded-full" />
+              <span className="text-[12px] text-gray-300">{label}</span>
             </div>
           ))}
         </div>
+      </header>
+      <div className="flex flex-1 p-2 sm:p-4 [&>div]:min-h-[calc(100svh-120px)]">
+        <HotspotsMapCard hotspots={hotspots} centerLat={center.lat} centerLon={center.lon} />
       </div>
-
-      {/* Map */}
-      <div ref={mapRef} className="flex-1 w-full" style={{ minHeight: "calc(100vh - 72px)" }} />
     </main>
   );
 }

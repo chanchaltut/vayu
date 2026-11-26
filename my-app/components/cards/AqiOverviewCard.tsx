@@ -1,166 +1,164 @@
-import Image from "next/image";
+"use client";
+import { useMemo, useState } from "react";
+import { useI18n } from "@/lib/i18n";
+import type { HourlyAqi } from "@/lib/vayuData";
+import { AQI_COLOR, aqiKey, hourLabel } from "@/lib/weatherUi";
 
-interface SensorReading {
+export interface SensorReading {
   aqi: number;
-  temperature?: number;
+  lat?: number;
+  lon?: number;
   timestamp: string | { value: string };
 }
 
 interface AqiOverviewCardProps {
-  readings?: SensorReading[];
+  /** Recent VAYU readings near the visitor (newest first). Preferred over satellite when present. */
+  sensorReadings: SensorReading[];
+  pastAqi: HourlyAqi[];
+  nextAqi: HourlyAqi[];
+  aiPrediction?: number | null;
 }
 
-function safeDate(ts: string | { value: string } | undefined): Date | null {
-  if (!ts) return null;
-  const raw = typeof ts === "object" && "value" in ts ? ts.value : ts;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? null : d;
+interface Bar {
+  label: string;
+  aqi: number;
 }
 
-export default function AqiOverviewCard({ readings = [] }: AqiOverviewCardProps) {
-  // Build up to 7 bars from real readings (oldest → newest), skip invalid timestamps
-  const validReadings = readings
-    .filter((r) => safeDate(r.timestamp) !== null)
-    .slice(0, 7)
-    .reverse();
+function tsValue(ts: SensorReading["timestamp"]): string {
+  return typeof ts === "object" ? ts.value : ts;
+}
 
-  // Find the highest AQI value among the visible readings to highlight logically
-  const maxVisibleAqi =
-    validReadings.length > 0
-      ? Math.max(...validReadings.map((r) => r.aqi))
-      : 62; // fallback peak
+export default function AqiOverviewCard({ sensorReadings, pastAqi, nextAqi, aiPrediction }: AqiOverviewCardProps) {
+  const { t, lang } = useI18n();
+  const [mode, setMode] = useState<"past" | "next">("past");
+  const [selected, setSelected] = useState<number | null>(null);
 
-  // --- Dynamic Scale & Benchmark Auto-Ranging ---
-  // Depending on the peak visible AQI, we adjust the chart bounds to make the layout clear
-  let chartMax = 500;
-  let benchmarkLow = 150;
-  let benchmarkLowLabel = "150";
-  let benchmarkHigh = 300;
-  let benchmarkHighLabel = "300";
-
-  if (maxVisibleAqi <= 100) {
-    chartMax = 100;
-    benchmarkLow = 50;
-    benchmarkLowLabel = "50"; // Good
-    benchmarkHigh = 80;
-    benchmarkHighLabel = "80"; // Moderate
-  } else if (maxVisibleAqi <= 250) {
-    chartMax = 250;
-    benchmarkLow = 100;
-    benchmarkLowLabel = "100"; // Moderate
-    benchmarkHigh = 200;
-    benchmarkHighLabel = "200"; // Poor
-  } else {
-    chartMax = 500;
-    benchmarkLow = 150;
-    benchmarkLowLabel = "150"; // Unhealthy
-    benchmarkHigh = 300;
-    benchmarkHighLabel = "300"; // Hazardous
-  }
-
-  const bars =
-    validReadings.length > 0
-      ? validReadings.map((r) => {
-          const aqiVal = Math.round(r.aqi);
+  const { bars, source } = useMemo(() => {
+    if (mode === "next") {
+      // Every 3rd hour across the next 24h → 8 bars.
+      const pts = nextAqi.filter((_, i) => i % 3 === 2).slice(0, 8);
+      return { bars: pts.map((p) => ({ label: hourLabel(p.time, lang.locale), aqi: Math.round(p.aqi) })), source: t.detect.sourceSatellite };
+    }
+    if (sensorReadings.length >= 3) {
+      const pts = sensorReadings.slice(0, 7).reverse();
+      return {
+        bars: pts.map((r) => {
+          const d = new Date(tsValue(r.timestamp));
           return {
-            label: safeDate(r.timestamp)!.toLocaleTimeString("en-IN", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            }),
-            aqi: aqiVal,
-            value: Math.min(Math.round((aqiVal / chartMax) * 100), 100),
-            // Highlighting is logically decided by the highest AQI reading in the set
-            highlighted: aqiVal === maxVisibleAqi && maxVisibleAqi > 0,
+            label: new Intl.DateTimeFormat(lang.locale, { hour: "numeric", minute: "2-digit" }).format(d),
+            aqi: Math.round(r.aqi),
           };
-        })
-      : [
-          // Realistic fallback data (max 62)
-          { label: "10:56 pm", aqi: 52, value: Math.round((52 / chartMax) * 100), highlighted: false },
-          { label: "12:06 am", aqi: 55, value: Math.round((55 / chartMax) * 100), highlighted: false },
-          { label: "01:12 am", aqi: 58, value: Math.round((58 / chartMax) * 100), highlighted: false },
-          { label: "02:14 am", aqi: 62, value: Math.round((62 / chartMax) * 100), highlighted: true },
-          { label: "03:20 am", aqi: 60, value: Math.round((60 / chartMax) * 100), highlighted: false },
-          { label: "04:21 am", aqi: 54, value: Math.round((54 / chartMax) * 100), highlighted: false },
-          { label: "05:07 am", aqi: 48, value: Math.round((48 / chartMax) * 100), highlighted: false },
-        ];
+        }),
+        source: t.detect.sourceSensors,
+      };
+    }
+    return {
+      bars: pastAqi.map((p) => ({ label: hourLabel(p.time, lang.locale), aqi: Math.round(p.aqi) })),
+      source: t.detect.sourceSatellite,
+    };
+  }, [mode, sensorReadings, pastAqi, nextAqi, lang.locale, t]);
 
-  // Recalculate max AQI from visible set or default peak
-  const maxAqi =
-    validReadings.length > 0 ? maxVisibleAqi : 62;
+  const peak = bars.length ? Math.max(...bars.map((b) => b.aqi)) : null;
+  const chartMax = peak == null || peak <= 100 ? 100 : peak <= 250 ? 250 : 500;
+  const [low, high] = chartMax === 100 ? [50, 80] : chartMax === 250 ? [100, 200] : [150, 300];
+  const shown: Bar | null = selected != null && bars[selected] ? bars[selected] : null;
+  const big = shown ? shown.aqi : peak;
 
-  // Calculate percentages for positioning lines and Y-axis labels dynamically
-  const pctLow = `${(benchmarkLow / chartMax) * 100}%`;
-  const pctHigh = `${(benchmarkHigh / chartMax) * 100}%`;
+  const switchMode = (m: "past" | "next") => {
+    setMode(m);
+    setSelected(null);
+  };
 
   return (
-    <div className="w-140 h-100 bg-[#FAFAFA] rounded-3xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col justify-between select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-black/6 shrink-0">
-        <h3 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight">
-          AQI Overview
-        </h3>
+    <div className="flex h-full w-full select-none flex-col overflow-hidden rounded-3xl bg-[#FAFAFA] shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-black/6 px-4 py-3.5 sm:px-6 sm:py-4">
+        <h3 className="text-[19px] font-bold tracking-tight text-[#1A1A1A] sm:text-[22px]">{t.detect.overview}</h3>
+        <div className="flex rounded-full bg-black/5 p-1" role="tablist">
+          {(["past", "next"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => switchMode(m)}
+              className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors sm:text-[13px] ${
+                mode === m ? "bg-white text-[#1A1A1A] shadow-sm" : "text-[#595959]"
+              }`}
+            >
+              {m === "past" ? t.detect.past : t.detect.next24}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Body */}
-      <div className="px-6 py-4 flex-1 flex flex-col justify-between">
-        <div className="shrink-0">
-          <p className="text-[15px] text-[#2B3037] font-semibold tracking-tight">Highest AQI</p>
-          <p className="text-[48px] font-bold text-[#1A1A1A] leading-none mt-1">
-            {maxAqi > 0 ? Math.round(maxAqi) : "—"}
-          </p>
+      <div className="flex flex-1 flex-col px-4 pb-4 pt-4 sm:px-6">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-semibold tracking-tight text-[#2B3037]">{shown ? shown.label : t.detect.highest}</p>
+            <p className="mt-1 text-[44px] font-bold leading-none tabular-nums sm:text-[48px]" style={{ color: big != null ? AQI_COLOR[aqiKey(big)] : "#1A1A1A" }}>
+              {big ?? "—"}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 text-right">
+            {mode === "next" && aiPrediction != null && (
+              <span className="rounded-full bg-[#C200FB]/10 px-2.5 py-1 text-[12px] font-bold text-[#8a00b3]">
+                {t.detect.aiPrediction}: {aiPrediction}
+              </span>
+            )}
+            <span className="text-[11.5px] font-semibold text-[#8C8C8C]">{source}</span>
+          </div>
         </div>
 
-        {/* Chart Area with separated dynamic Y-Axis */}
-        <div className="mt-6 flex-1 flex gap-1 items-end">
-          
-          {/* Y-Axis Tick Labels aligned dynamically to matching percentages */}
-          <div className="w-14 h-38 flex flex-col justify-between items-end pr-2 text-[10px] text-gray-400 font-extrabold pointer-events-none pb-6 relative shrink-0">
-            <span style={{ bottom: pctHigh, position: "absolute", right: "4px" }}>{benchmarkHighLabel} —</span>
-            <span style={{ bottom: pctLow, position: "absolute", right: "4px" }}>{benchmarkLowLabel} —</span>
+        {/* Chart */}
+        <div className="mt-5 flex flex-1 items-end gap-1">
+          <div className="relative h-40 w-9 shrink-0 pb-6 text-[10px] font-extrabold text-gray-400 sm:w-12">
+            <div className="relative h-full">
+              <span className="absolute right-1 translate-y-1/2" style={{ bottom: `${(high / chartMax) * 100}%` }}>{high} —</span>
+              <span className="absolute right-1 translate-y-1/2" style={{ bottom: `${(low / chartMax) * 100}%` }}>{low} —</span>
+            </div>
           </div>
-
-          {/* Chart Wrapper */}
-          <div className="flex-1 flex items-end justify-between gap-3.5 h-38 relative">
-            
-            {/* Dynamic Benchmark line (Low threshold) */}
-            <div
-              className="absolute left-0 right-0 border-t border-dashed border-red-500/25 z-10 pointer-events-none"
-              style={{ bottom: pctLow }}
-            />
-
-            {/* Dynamic Benchmark line (High threshold) */}
-            <div
-              className="absolute left-0 right-0 border-t border-dashed border-purple-500/25 z-10 pointer-events-none"
-              style={{ bottom: pctHigh }}
-            />
-
-            {bars.map((bar, i) => (
-              <div
-                key={i}
-                className="flex flex-col items-center gap-2.5 flex-1 h-full justify-end relative z-20 group"
-              >
-                {/* Floating exact AQI Tooltip on Hover */}
-                <div className="absolute left-1/2 -translate-x-1/2 -top-7 bg-[#1A1A1A] text-white text-[11px] font-bold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-30 shadow-md">
-                  AQI {bar.aqi}
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-[-3.5px] w-1.5 h-1.5 bg-[#1A1A1A] rotate-45" />
-                </div>
-
-                {/* Animated Column Bar */}
-                <div
-                  className={`w-full rounded-xl transition-all duration-300 cursor-pointer ${
-                    bar.highlighted
-                      ? "bg-red-600 shadow-[0_4px_12px_rgba(220,38,38,0.25)] hover:bg-red-700"
-                      : "bg-[#D9D9D9] hover:bg-gray-400"
-                  }`}
-                  style={{ height: `${bar.value}%` }}
-                />
-
-                <span className="text-[10px] text-[#555] font-semibold truncate w-full text-center leading-tight">
-                  {bar.label}
-                </span>
-              </div>
-            ))}
+          <div className="relative flex h-40 flex-1 items-end justify-between gap-1.5 sm:gap-3">
+            <div className="pointer-events-none absolute inset-x-0 bottom-6 top-0">
+              <div className="absolute inset-x-0 border-t border-dashed border-red-500/25" style={{ bottom: `${(low / chartMax) * 100}%` }} />
+              <div className="absolute inset-x-0 border-t border-dashed border-purple-500/25" style={{ bottom: `${(high / chartMax) * 100}%` }} />
+            </div>
+            {bars.length === 0
+              ? Array.from({ length: 7 }, (_, i) => (
+                  <div key={i} className="flex h-full flex-1 flex-col justify-end gap-2">
+                    <div className="w-full animate-pulse rounded-xl bg-black/5" style={{ height: `${30 + ((i * 17) % 40)}%` }} />
+                    <span className="h-3.5" />
+                  </div>
+                ))
+              : bars.map((b, i) => {
+                  const isPeak = b.aqi === peak;
+                  const isSel = selected === i;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSelected(isSel ? null : i)}
+                      aria-label={`${b.label}: AQI ${b.aqi}`}
+                      className="group relative z-20 flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                    >
+                      <span
+                        className={`pointer-events-none absolute -top-1 left-1/2 z-30 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-[#1A1A1A] px-2 py-0.5 text-[11px] font-bold text-white shadow-md sm:block ${
+                          isSel ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        } transition-opacity`}
+                      >
+                        AQI {b.aqi}
+                      </span>
+                      <div className="flex w-full flex-1 items-end">
+                        <div
+                          className={`w-full rounded-lg transition-all duration-300 sm:rounded-xl ${
+                            isSel ? "bg-[#1A1A1A]" : isPeak ? "bg-red-600 shadow-[0_4px_12px_rgba(220,38,38,0.25)]" : "bg-[#D9D9D9] group-hover:bg-gray-400"
+                          }`}
+                          style={{ height: `${Math.max(4, Math.min(100, (b.aqi / chartMax) * 100))}%` }}
+                        />
+                      </div>
+                      <span className="h-3.5 w-full truncate text-center text-[9.5px] font-semibold leading-tight text-[#555] sm:text-[10px]">{b.label}</span>
+                    </button>
+                  );
+                })}
           </div>
         </div>
       </div>

@@ -1,6 +1,9 @@
 "use client";
-import { useRef, useState, ChangeEvent } from "react";
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import Toast from "../Toast";
+import MicButton from "../buttons/MicButton";
+import { useI18n } from "@/lib/i18n";
+import { UPLOAD_COORDS_KEY, useVayuData } from "@/lib/vayuData";
 
 interface AnalysisResult {
   smoke_detected: boolean;
@@ -12,238 +15,318 @@ interface AnalysisResult {
   confidence: number;
 }
 
+const MAX_INPUT_BYTES = 10 * 1024 * 1024;
+// Vercel rejects request bodies over 4.5 MB, so photos are resized before upload.
+const MAX_UPLOAD_BYTES = 4.2 * 1024 * 1024;
+const MAX_EDGE = 1920;
+
+async function shrinkImage(file: File): Promise<File> {
+  if (file.size < 1.5 * 1024 * 1024) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file; // e.g. a format the browser can't decode; send as-is
+  }
+}
+
+function getPosition(timeout = 8000): Promise<{ lat: number; lon: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout, maximumAge: 30000 }
+    );
+  });
+}
+
 export default function UploadCard() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { t, fmt, lang } = useI18n();
+  const { coords } = useVayuData();
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState<"idle" | "locating" | "uploading">("idle");
+  const [dragging, setDragging] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Success states & Toasts
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [uploadCompletedCount, setUploadCompletedCount] = useState(0);
+  const [count, setCount] = useState(0);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelectedFile(file);
-    setPreview(URL.createObjectURL(file));
+  useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
+
+  const pick = (f: File | undefined) => {
+    if (!f) return;
+    if (!f.type.startsWith("image/")) return setError(t.report.notImage);
+    if (f.size > MAX_INPUT_BYTES) return setError(t.report.tooLarge);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
     setError(null);
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setError("Please select a photo first.");
-      return;
-    }
-    setLoading(true);
+  const onInput = (e: ChangeEvent<HTMLInputElement>) => {
+    pick(e.target.files?.[0]);
+    e.target.value = ""; // allow re-selecting the same file
+  };
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    pick(e.dataTransfer.files?.[0]);
+  };
+
+  const clear = () => {
+    setFile(null);
+    setPreview(null);
+  };
+
+  const submit = async () => {
+    if (!file) return setError(t.report.selectFirst);
     setError(null);
-
-    // Get GPS coords
-    let lat = 28.6139, lon = 77.2090; // default: New Delhi
-    try {
-      const pos = await new Promise<GeolocationPosition>((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000 })
-      );
-      lat = pos.coords.latitude;
-      lon = pos.coords.longitude;
-    } catch {
-      /* use default */
-    }
-
-    const formData = new FormData();
-    formData.append("image", selectedFile);
-    formData.append("lat", String(lat));
-    formData.append("lon", String(lon));
-    if (description) formData.append("description", description);
+    setStage("locating");
+    const gps = await getPosition();
+    const { lat, lon } = gps ?? coords; // fall back to the visitor's detected area
+    setStage("uploading");
 
     try {
-      const res = await fetch("/api/photos", { method: "POST", body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Upload failed");
-      
-      // Save analysis results for user to view
+      const image = await shrinkImage(file);
+      if (image.size > MAX_UPLOAD_BYTES) throw new Error(t.report.tooLarge);
+
+      const form = new FormData();
+      form.append("image", image);
+      form.append("lat", String(lat));
+      form.append("lon", String(lon));
+      if (description.trim()) form.append("description", description.trim());
+
+      const res = await fetch("/api/photos", { method: "POST", body: form });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) throw new Error(json?.error || t.report.failed);
+
       setResult(json.data);
-      
-      // Increment count, trigger toast, and reset upload area
-      setUploadCompletedCount((prev) => prev + 1);
-      setSelectedFile(null);
-      setPreview(null);
+      setCount((c) => c + 1);
+      if (gps) localStorage.setItem(UPLOAD_COORDS_KEY, JSON.stringify(gps));
+      clear();
       setDescription("");
-      
-      setToast({
-        message: "Photo uploaded & Gemini Vision analysis completed!",
-        type: "success",
-      });
+      setToast({ message: t.report.success, type: "success" });
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "Something went wrong";
-      setError(errMsg);
-      setToast({
-        message: errMsg,
-        type: "error",
-      });
+      const msg = err instanceof Error && err.message ? err.message : t.report.failed;
+      setError(msg);
+      setToast({ message: msg, type: "error" });
     } finally {
-      setLoading(false);
+      setStage("idle");
     }
   };
 
-  const severityColor = (s: number) =>
-    s >= 8 ? "text-red-600" : s >= 5 ? "text-orange-500" : "text-green-600";
+  const busy = stage !== "idle";
+  const submitLabel = stage === "locating" ? t.report.locating : stage === "uploading" ? t.report.analysing : t.report.submit;
+  const sevColor = (s: number) => (s >= 8 ? "text-red-600" : s >= 5 ? "text-orange-500" : "text-green-600");
+  const impactColor = (i: string) =>
+    /low|good/i.test(i) ? "text-green-600" : /mod|medium/i.test(i) ? "text-amber-500" : "text-red-600";
 
-  const getAqiImpactColor = (impact: string) => {
-    const imp = impact.toLowerCase();
-    if (imp.includes("low") || imp.includes("good")) return "text-green-600";
-    if (imp.includes("medium") || imp.includes("mod") || imp.includes("moderate")) return "text-amber-500";
-    return "text-red-600"; // high, severe, hazardous
-  };
+  const spinner = (
+    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
 
   return (
-    <div
-      className="w-150 rounded-4xl p-0.75 shadow-[0_20px_50px_rgba(0,0,0,0.04)] relative"
-      style={{
-        background:
-          "linear-gradient(135deg, #FF3B30 0%, #C200FB 25%, #005AFF 50%, #00D604 80%, #FFCC00 100%)",
-      }}
-    >
-      {/* Dynamic Toast Popup */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+    <div className="rainbow-border relative w-full max-w-150 rounded-[30px] p-[3px] shadow-[0_20px_50px_rgba(0,0,0,0.06)] md:rounded-4xl">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="w-full bg-white rounded-[29px] flex flex-col items-center justify-center gap-6 py-8 px-6">
-        {/* Hidden real file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onInput} />
+      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onInput} />
 
-        {/* Dropzone / Preview */}
+      <div className="flex w-full flex-col gap-4 rounded-[27px] bg-white p-3.5 sm:p-5 md:gap-6 md:rounded-[29px] md:px-6 md:py-8">
+        {/* Dropzone / preview */}
         <div
-          onClick={() => fileInputRef.current?.click()}
-          className="w-136 h-52 bg-[#F5F5F5] rounded-3xl flex items-center justify-center cursor-pointer hover:bg-[#EBEBEB] transition-colors border border-transparent hover:border-black/5 overflow-hidden relative"
+          role="button"
+          tabIndex={0}
+          aria-label={t.report.choosePhoto}
+          onClick={() => !preview && galleryRef.current?.click()}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && !preview && galleryRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          className={`relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-[22px] border-2 border-dashed transition-colors sm:aspect-[16/9] md:aspect-auto md:h-52 md:rounded-3xl ${
+            dragging ? "border-[#005AFF] bg-[#005AFF]/5" : preview ? "border-transparent" : "cursor-pointer border-black/10 bg-[#F5F5F5] hover:bg-[#EBEBEB]"
+          }`}
         >
           {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="preview"
-              className="w-full h-full object-cover rounded-3xl"
-            />
-          ) : (
-            <span className="text-[#595959] text-[18px] font-medium tracking-tight flex items-center gap-2">
-              Upload here
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clear();
+                }}
+                aria-label={t.report.remove}
+                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/75"
               >
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-            </span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" aria-hidden>
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-3 px-6 text-center text-[#595959]">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-[0_4px_16px_rgba(0,0,0,0.06)] md:h-12 md:w-12">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </span>
+              <span className="text-[17px] font-semibold tracking-tight text-[#1A1A1A] md:text-[18px]">{t.report.dropTitle}</span>
+              <span className="-mt-2 text-[13.5px] font-medium">{t.report.dropHint}</span>
+            </div>
           )}
         </div>
 
-        {/* Input + Buttons Row */}
-        <div className="w-136 h-12 flex items-center gap-3">
+        {/* Phone: camera / gallery side by side */}
+        <div className="grid grid-cols-2 gap-2.5 md:hidden">
           <button
             type="button"
-            onClick={handleUpload}
-            disabled={loading || !selectedFile}
-            className="w-38 h-12 bg-white border border-black/10 rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => cameraRef.current?.click()}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#1A1A1A] text-[15px] font-semibold text-white active:scale-[0.98]"
           >
-            <span className="text-[15px] font-semibold text-black tracking-tight">
-              {loading ? "Analysing..." : "Upload photo"}
-            </span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            {t.report.takePhoto}
           </button>
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white text-[15px] font-semibold text-[#1A1A1A] active:scale-[0.98]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            {t.report.gallery}
+          </button>
+        </div>
 
-          <div className="flex-1 h-full bg-[#F5F5F5] rounded-full flex items-center px-5 border border-transparent focus-within:border-black/10 focus-within:bg-white transition-colors duration-300">
+        {/* Description (+ desktop submit) */}
+        <div className="flex items-center gap-2.5 md:gap-3">
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !file}
+            className="hidden h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-6 text-[15px] font-semibold tracking-tight text-black shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] disabled:cursor-not-allowed disabled:opacity-40 md:flex"
+          >
+            {busy && spinner}
+            {submitLabel}
+          </button>
+          <label className="flex h-12 min-w-0 flex-1 items-center rounded-full border border-transparent bg-[#F5F5F5] px-5 transition-colors duration-300 focus-within:border-black/10 focus-within:bg-white">
+            <span className="sr-only">{t.report.describe}</span>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what you see"
-              className="bg-transparent outline-none w-full text-[15px] text-[#1A1A1A] font-medium placeholder-[#8C8C8C]"
+              onKeyDown={(e) => e.key === "Enter" && file && !busy && submit()}
+              placeholder={t.report.describe}
+              maxLength={300}
+              enterKeyHint="send"
+              className="w-full bg-transparent text-[16px] font-medium text-[#1A1A1A] outline-none placeholder:text-[#8C8C8C] md:text-[15px]"
             />
-          </div>
+          </label>
+          <MicButton
+            locale={lang.locale}
+            label={t.report.speak}
+            listeningLabel={t.report.listening}
+            onText={(txt) => setDescription((d) => (d ? `${d} ${txt}` : txt).slice(0, 300))}
+            className="bg-[#F5F5F5] shadow-none md:bg-white md:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+          />
         </div>
 
-        {/* Status Indicators (Error / Submission Count) */}
-        {error && <p className="text-red-500 text-[14px] font-medium">{error}</p>}
-        {uploadCompletedCount > 0 && (
-          <p className="text-green-600 text-[14.5px] font-bold tracking-tight text-center flex items-center justify-center gap-1.5">
-            <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+        {/* Phone: full-width submit */}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !file}
+          className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#005AFF] text-[16px] font-semibold text-white shadow-[0_8px_24px_rgba(0,90,255,0.25)] transition-all active:scale-[0.99] disabled:bg-[#BFBFBF] disabled:shadow-none md:hidden"
+        >
+          {busy && spinner}
+          {submitLabel}
+        </button>
+
+        <p className="-mt-1 flex items-center justify-center gap-1.5 text-center text-[12.5px] font-medium text-[#8C8C8C] md:-mt-3">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+            <path d="M12 21s-7-6.2-7-11.5a7 7 0 1 1 14 0C19 14.8 12 21 12 21z" />
+            <circle cx="12" cy="9.5" r="2.5" />
+          </svg>
+          {t.report.locationNote}
+        </p>
+
+        {error && (
+          <p role="alert" className="-mt-1 text-center text-[14px] font-medium text-red-500">
+            {error}
+          </p>
+        )}
+        {count > 0 && (
+          <p className="flex items-center justify-center gap-1.5 text-center text-[14.5px] font-bold tracking-tight text-green-600">
+            <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
-            <span>
-              Thanks for making {uploadCompletedCount} submission{uploadCompletedCount > 1 ? "s" : ""}! You can make another submission above.
-            </span>
+            <span>{count === 1 ? t.report.thanksOne : fmt(t.report.thanksMany, { n: count })}</span>
           </p>
         )}
 
-        {/* Result Panel */}
         {result && (
-          <div className="w-136 bg-[#F8F8F8] rounded-2xl p-5 flex flex-col gap-2.5 border border-black/5">
-            <div className="flex items-center justify-between">
-              <h4 className="text-[16px] font-bold text-[#1A1A1A]">Result</h4>
-              <span className={`text-[14px] font-bold ${severityColor(result.severity)}`}>
-                Severity {result.severity}/10
+          <div className="flex w-full flex-col gap-3 rounded-2xl border border-black/5 bg-[#F8F8F8] p-4 md:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-[16px] font-bold text-[#1A1A1A]">{t.report.result}</h4>
+              <span className={`rounded-full bg-white px-3 py-1 text-[13px] font-bold ${sevColor(result.severity)}`}>
+                {t.report.severity} {result.severity}/10
               </span>
             </div>
-            <p className="text-[14px] text-[#444] leading-[1.5] font-medium">{result.description}</p>
-            
-            <div className="flex gap-x-5 gap-y-2 mt-1 flex-wrap items-center border-t border-black/5 pt-3">
-              {/* Verdict Indicator */}
-              <span className="text-[13px] font-semibold text-[#1A1A1A] flex items-center gap-1.5">
-                {result.smoke_detected ? (
-                  <>
-                    <svg className="w-4.5 h-4.5 text-red-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
-                    <span className="text-red-600">Smoke detected</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4.5 h-4.5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-green-600">No smoke</span>
-                  </>
-                )}
-              </span>
-              
-              {/* Pollution Type */}
-              <span className="text-[13px] font-bold text-[#1A1A1A]">
-                Type: <span className="font-semibold text-gray-600">{result.pollution_type}</span>
-              </span>
-
-              {/* AQI Impact */}
-              <span className="text-[13px] font-bold text-[#1A1A1A]">
-                AQI Impact: <span className={`font-semibold ${getAqiImpactColor(result.estimated_aqi_impact)}`}>{result.estimated_aqi_impact}</span>
-              </span>
-
-              {/* Confidence */}
-              <span className="text-[13px] font-bold text-[#1A1A1A]">
-                Confidence: <span className="font-semibold text-gray-600">{Math.round(result.confidence * 100)}%</span>
-              </span>
+            {/* Gemini's free-text description stays in the language Gemini wrote it in. */}
+            <p className="text-[14px] font-medium leading-[1.5] text-[#444]">{result.description}</p>
+            <div className="grid grid-cols-2 gap-2 border-t border-black/5 pt-3 sm:grid-cols-4">
+              <Stat label={result.smoke_detected ? t.report.smoke : t.report.noSmoke}>
+                <span className={result.smoke_detected ? "text-red-600" : "text-green-600"}>{result.smoke_detected ? "●" : "✓"}</span>
+              </Stat>
+              <Stat label={t.report.type}>
+                <span className="capitalize text-[#1A1A1A]">{result.pollution_type}</span>
+              </Stat>
+              <Stat label={t.report.impact}>
+                <span className={`capitalize ${impactColor(result.estimated_aqi_impact)}`}>{result.estimated_aqi_impact.replace("_", " ")}</span>
+              </Stat>
+              <Stat label={t.report.confidence}>
+                <span className="text-[#1A1A1A]">{Math.round(result.confidence * 100)}%</span>
+              </Stat>
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-xl bg-white px-3 py-2">
+      <span className="text-[11.5px] font-semibold text-[#8C8C8C]">{label}</span>
+      <span className="text-[14px] font-bold">{children}</span>
     </div>
   );
 }

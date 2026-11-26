@@ -3,363 +3,130 @@ import { useEffect, useState } from "react";
 import GridBackground from "@/components/backgrounds/GridBackground";
 import SectionHeader from "@/components/texts/SectionHeader";
 import CountCard from "@/components/cards/CountCard";
-import AqiOverviewCard from "../cards/AqiOverviewCard";
+import AqiOverviewCard, { type SensorReading } from "../cards/AqiOverviewCard";
 import WeeklyTemperatureCard from "../cards/WeeklyTemperatureCard";
 import HotspotsMapCard from "../cards/HotspotsMapCard";
 import TextDescriptionCard from "../cards/TextDescriptionCard";
 import Toast from "../Toast";
+import { useI18n } from "@/lib/i18n";
+import { useVayuData } from "@/lib/vayuData";
+import { HOTSPOTS_UPDATED, useHotspots } from "@/lib/useHotspots";
+import { weatherIcon, weatherText, weekday } from "@/lib/weatherUi";
 
-interface Hotspot {
-  id: string;
-  lat: number;
-  lon: number;
-  severity: number;
-  avg_aqi: number;
-  avg_temperature: number;
-  reasoning: string;
-  colour: string;
-  aqi_category: string;
-  action: string;
-}
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface SensorReading {
-  aqi: number;
-  temperature?: number;
-  timestamp: string;
-}
-
-interface ForecastCard {
-  day: string;
-  icon: string;
-  temp: number;
-  isActive: boolean;
-}
-
-interface Coords {
-  lat: number;
-  lon: number;
-}
-
-function getWeatherIcon(code: number): string {
-  if (code === 0 || code === 1 || code === 2 || code === 3) {
-    return "/assets/SunCloud.png";
+/** VAYU readings from the last 24h near the visitor (otherwise the chart uses satellite data). */
+async function fetchNearbyReadings(lat: number, lon: number): Promise<SensorReading[]> {
+  try {
+    const json = await (await fetch("/api/sensors", { cache: "no-store" })).json();
+    const rows: (SensorReading & { lat: number; lon: number })[] = json?.data?.readings ?? [];
+    const now = Date.now();
+    return rows.filter((r) => {
+      const ts = new Date(typeof r.timestamp === "object" ? r.timestamp.value : r.timestamp).getTime();
+      return now - ts < DAY_MS && Math.abs(r.lat - lat) < 0.3 && Math.abs(r.lon - lon) < 0.3;
+    });
+  } catch {
+    return [];
   }
-  if (code >= 51 && code <= 67) {
-    return "/assets/RainCloud.png";
-  }
-  if (code >= 71 && code <= 77) {
-    return "/assets/SnowCloud.png";
-  }
-  if (code >= 80 && code <= 82) {
-    return "/assets/RainCloud.png";
-  }
-  if (code >= 95 && code <= 99) {
-    return "/assets/ThunderCloud.png";
-  }
-  return "/assets/SunCloud.png"; // default
 }
 
 export default function AiPrediction() {
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
+  const { t, fmt, lang } = useI18n();
+  const { coords, temperature, aqi, daily, pastAqi, nextAqi } = useVayuData();
+  const { hotspots } = useHotspots();
   const [readings, setReadings] = useState<SensorReading[]>([]);
-  const [latestAqi, setLatestAqi] = useState<number | null>(null);
-  const [latestTemp, setLatestTemp] = useState<number | null>(null);
-  
-  // Geolocation cascade matching Hero.tsx
-  const [coords, setCoords] = useState<Coords>({ lat: 22.5726, lon: 88.3639 });
+  const [aiPrediction, setAiPrediction] = useState<number | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  const [forecastCards, setForecastCards] = useState<ForecastCard[]>([
-    { day: "Sat", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
-    { day: "Sun", icon: "/assets/RainCloud.png", temp: 11, isActive: true },
-    { day: "Mon", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
-    { day: "Tue", icon: "/assets/RainCloud.png", temp: 10, isActive: false },
-    { day: "Wed", icon: "/assets/SunCloud.png", temp: 10, isActive: false },
-    { day: "Thu", icon: "/assets/RainCloud.png", temp: 12, isActive: false },
-  ]);
+  const loadReadings = () => fetchNearbyReadings(coords.lat, coords.lon).then(setReadings);
 
-  // 1. Resolve Location Cascade (matching Hero.tsx priorities)
   useEffect(() => {
-    const resolveLocation = async () => {
-      // Priority 1: IP Geolocation — automatic & captures city like Kalyani
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        const data = await res.json();
-        if (data.latitude && data.longitude) {
-          setCoords({ lat: data.latitude, lon: data.longitude });
-          return;
-        }
-      } catch (e) {
-        console.error("[PREDICTION-LOC] IP lookup fallback active:", e);
-      }
-
-      // Priority 2: Check local storage cache
-      const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
-      if (cachedCoords) {
-        try {
-          const parsed = JSON.parse(cachedCoords);
-          if (parsed.lat && parsed.lon) {
-            setCoords({ lat: parsed.lat, lon: parsed.lon });
-            return;
-          }
-        } catch (e) {}
-      }
-
-      // Priority 3: Latest hardware node coordinate
-      try {
-        const res = await fetch("/api/sensors");
-        const json = await res.json();
-        const latest = json?.data?.readings?.[0];
-        if (latest && latest.lat && latest.lon) {
-          setCoords({ lat: latest.lat, lon: latest.lon });
-          return;
-        }
-      } catch (e) {}
-
-      // Priority 4: Browser geolocation fallback
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setCoords({
-              lat: position.coords.latitude,
-              lon: position.coords.longitude,
-            });
-          },
-          () => {
-            setCoords({ lat: 22.5726, lon: 88.3639 }); // default Kolkata
-          },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-      }
+    let alive = true;
+    fetchNearbyReadings(coords.lat, coords.lon).then((r) => alive && setReadings(r));
+    // Gemini's 24h prediction — only shown when it is based on real nearby readings.
+    fetch(`/api/forecast/${coords.lat.toFixed(4)}/${coords.lon.toFixed(4)}`)
+      .then((r) => r.json())
+      .then((j) => alive && setAiPrediction(j?.data?.source === "gemini" ? Math.round(j.data.predicted_aqi_24h) : null))
+      .catch(() => alive && setAiPrediction(null));
+    return () => {
+      alive = false;
     };
-
-    resolveLocation();
-  }, []);
-
-  // 2. Fetch hotspots
-  const fetchHotspots = async () => {
-    try {
-      const res = await fetch("/api/hotspots");
-      const json = await res.json();
-      setHotspots(json?.data?.hotspots ?? []);
-    } catch (e) {
-      console.error("Failed to fetch hotspots", e);
-    }
-  };
-
-  // 3. Fetch readings (from BigQuery table or fallback dynamically to live hourly satellite AQI for current city)
-  const fetchReadings = async () => {
-    try {
-      const res = await fetch("/api/sensors");
-      const json = await res.json();
-      let data: SensorReading[] = json?.data?.readings ?? [];
-      
-      // Dynamic Fallback: If BigQuery holds no readings, fetch live hourly satellite AQI values for coords
-      if (data.length === 0) {
-        const aqRes = await fetch(
-          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&hourly=us_aqi&timezone=Asia/Kolkata`
-        );
-        const aqJson = await aqRes.json();
-        const hourlyAqi = aqJson?.hourly?.us_aqi;
-        const hourlyTime = aqJson?.hourly?.time;
-        if (hourlyAqi && hourlyTime) {
-          // Take the last 7 hours of historical readings to represent the AQI trend
-          const endIndex = hourlyAqi.length;
-          const startIndex = Math.max(0, endIndex - 7);
-          const slicedAqi = hourlyAqi.slice(startIndex, endIndex);
-          const slicedTime = hourlyTime.slice(startIndex, endIndex);
-          
-          data = slicedAqi.map((aqiVal: number, idx: number) => ({
-            aqi: aqiVal,
-            timestamp: slicedTime[idx],
-          }));
-        }
-      }
-      setReadings(data);
-    } catch (e) {
-      console.error("Failed to fetch sensor readings", e);
-    }
-  };
-
-  // 4. Fetch weather temperature / AQI for resolved geolocated coordinates
-  useEffect(() => {
-    const fetchLocalStats = async () => {
-      try {
-        // Fetch weather
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m`;
-        const weatherRes = await fetch(weatherUrl);
-        const weatherJson = await weatherRes.json();
-        if (weatherJson?.current?.temperature_2m != null) {
-          setLatestTemp(Math.round(weatherJson.current.temperature_2m));
-        }
-
-        // Fetch AQI
-        const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&current=us_aqi`;
-        const aqRes = await fetch(aqUrl);
-        const aqJson = await aqRes.json();
-        if (aqJson?.current?.us_aqi != null) {
-          setLatestAqi(aqJson.current.us_aqi);
-        }
-      } catch (err) {
-        console.error("Failed to fetch local stats for prediction section", err);
-      }
-    };
-
-    fetchHotspots();
-    fetchReadings();
-    fetchLocalStats();
-  }, [coords]);
-
-  // 5. Fetch dynamic weekly weather forecast cards for coordinates
-  useEffect(() => {
-    const fetchLiveForecast = async () => {
-      try {
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata`
-        );
-        const data = await res.json();
-        const daily = data?.daily;
-        if (!daily?.time) return;
-
-        const mapped: ForecastCard[] = daily.time.slice(0, 6).map((timeStr: string, index: number) => {
-          const date = new Date(timeStr);
-          const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-          const temp = Math.round(daily.temperature_2m_max[index]);
-          const weatherCode = daily.weather_code[index];
-
-          return {
-            day: dayName,
-            icon: getWeatherIcon(weatherCode),
-            temp,
-            isActive: index === 0, // Make today's card active
-          };
-        });
-
-        setForecastCards(mapped);
-      } catch (err) {
-        console.error("Failed to fetch forecast cards", err);
-      }
-    };
-
-    fetchLiveForecast();
-  }, [coords]);
+  }, [coords.lat, coords.lon]);
 
   const handleDetect = async () => {
     setIsDetecting(true);
     try {
       const res = await fetch("/api/detect-hotspots", { method: "POST" });
-      const json = await res.json();
-      if (json.success) {
-        // Refetch everything to update the views instantly
-        await Promise.all([fetchHotspots(), fetchReadings()]);
-        
-        // Dispatch custom event to auto-refresh the Municipality cards
-        window.dispatchEvent(new Event("vayu_hotspots_updated"));
-
-        setToast({
-          message: `Hotspot detection complete! Identified ${json.data.hotspots_detected} active cells.`,
-          type: "success",
-        });
-      } else {
-        setToast({
-          message: "Hotspot detection completed with no new anomalies identified.",
-          type: "error",
-        });
-      }
-    } catch (err) {
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) throw new Error(json?.error || "failed");
+      window.dispatchEvent(new Event(HOTSPOTS_UPDATED));
+      await loadReadings();
+      const n: number = json.data?.hotspots_saved ?? 0;
       setToast({
-        message: "Network error triggering hotspot fusion engine.",
-        type: "error",
+        message: n === 0 ? t.detect.doneNone : n === 1 ? t.detect.doneOne : fmt(t.detect.doneMany, { n }),
+        type: "success",
       });
-      console.error("Error triggering hotspot detection", err);
+    } catch (err) {
+      console.error("[detect]", err);
+      setToast({ message: t.detect.failed, type: "error" });
     } finally {
       setIsDetecting(false);
     }
   };
 
-  const topReasoning =
-    hotspots.length > 0
-      ? hotspots[0].reasoning
-      : "AI is analysing data — run hotspot detection to populate this.";
+  const week = daily.slice(0, 6);
 
   return (
-    <section
-      id="detect"
-      className="relative w-full flex flex-col items-center pt-20 pb-8 overflow-hidden"
-    >
-      {/* Dynamic Toast Popup */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
-      {/* Background */}
+    <section id="detect" className="relative flex w-full flex-col items-center overflow-hidden pb-12 pt-16 md:pb-12 md:pt-24 lg:pt-20">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <GridBackground />
 
-      <div className="relative z-10 w-full max-w-360 mx-auto px-8 flex flex-col items-center">
-        <SectionHeader
-          heading="Detect. Analyze. Predict."
-          subheading="Hotspot detection now. Air quality forecasts for the next 24 hours."
-        />
+      <div className="relative z-10 mx-auto flex w-full max-w-360 flex-col items-center px-4 sm:px-6 md:px-8">
+        <SectionHeader eyebrow={t.nav.detect} heading={t.detect.heading} subheading={t.detect.sub} />
 
-        {/* Top Row */}
-        <div className="mt-8 w-full max-w-360 flex justify-between gap-8">
-          {/* Left Column */}
-          <div className="flex flex-col gap-6 w-[45%]">
-            <div className="flex items-center justify-between w-full">
-              <CountCard
-                label="Temperature"
-                value={latestTemp != null ? `${latestTemp}°C` : "—"}
-              />
+        <div className="mt-8 grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-[45fr_50fr] lg:gap-x-[5%]">
+          {/* Stats */}
+          <div className="order-1 grid grid-cols-3 gap-2.5 md:col-span-2 md:flex md:items-center md:justify-between lg:col-span-1 lg:col-start-1 lg:row-start-1">
+            <CountCard label={t.detect.temperature} value={temperature != null ? `${temperature}°C` : "—"} />
+            <CountCard label={t.detect.aqi} value={aqi ?? "—"} />
+            <CountCard label={t.detect.hotspots} value={hotspots.length} />
+          </div>
 
-              <CountCard
-                label="AQI"
-                value={latestAqi != null ? latestAqi : "—"}
-              />
+          {/* Map */}
+          <div className="order-2 h-[380px] md:order-3 md:h-auto md:min-h-[440px] lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            <HotspotsMapCard hotspots={hotspots} centerLat={coords.lat} centerLon={coords.lon} />
+          </div>
 
-              <CountCard
-                label="Hotspots"
-                value={hotspots.length}
-              />
+          {/* Gemini analysis */}
+          <div className="order-3 md:order-5 md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-3">
+            <TextDescriptionCard reasoning={hotspots[0]?.reasoning} onDetect={handleDetect} isDetecting={isDetecting} />
+          </div>
+
+          {/* AQI chart */}
+          <div className="order-4 md:order-2 lg:col-start-1 lg:row-start-2">
+            <AqiOverviewCard sensorReadings={readings} pastAqi={pastAqi} nextAqi={nextAqi} aiPrediction={aiPrediction} />
+          </div>
+
+          {/* This week */}
+          <div className="order-5 -mx-4 sm:-mx-6 md:order-4 md:col-span-2 md:mx-0 lg:col-span-1 lg:col-start-1 lg:row-start-3">
+            <p className="mb-2.5 px-5 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8C8C8C] sm:px-7 md:hidden">{t.detect.week}</p>
+            <div className="no-scrollbar flex h-[188px] snap-x snap-mandatory scroll-px-4 items-stretch gap-3 overflow-x-auto px-4 sm:px-6 md:h-[180px] md:justify-center md:overflow-visible md:px-0 lg:h-full lg:min-h-[180px] lg:justify-between lg:gap-2 xl:justify-center xl:gap-4">
+              {(week.length ? week : Array.from({ length: 6 }, () => null)).map((d, i) =>
+                d ? (
+                  <WeeklyTemperatureCard
+                    key={d.date}
+                    day={i === 0 ? t.hero.today : weekday(d.date, lang.locale)}
+                    icon={weatherIcon(d.code)}
+                    iconAlt={weatherText(d.code, t)}
+                    temperature={d.max}
+                    isActive={i === 0}
+                  />
+                ) : (
+                  <div key={i} className="w-[76px] shrink-0 animate-pulse rounded-2xl bg-black/5" />
+                )
+              )}
             </div>
-
-            <AqiOverviewCard readings={readings} />
-          </div>
-
-          {/* Right Column */}
-          <div className="w-[50%] flex justify-end">
-            <HotspotsMapCard
-              hotspots={hotspots}
-              centerLat={coords.lat}
-              centerLon={coords.lon}
-            />
-          </div>
-        </div>
-
-        {/* Bottom Row */}
-        <div className="mt-8 w-full max-w-360 flex justify-between items-stretch">
-          <div className="w-[45%] flex items-center justify-center gap-4">
-            {forecastCards.map((data) => (
-              <WeeklyTemperatureCard
-                key={data.day}
-                day={data.day}
-                icon={data.icon}
-                temperature={data.temp}
-                isActive={data.isActive}
-              />
-            ))}
-          </div>
-
-          <div className="w-[40%] flex">
-            <TextDescriptionCard
-              reasoning={topReasoning}
-              onDetect={handleDetect}
-              isDetecting={isDetecting}
-            />
           </div>
         </div>
       </div>

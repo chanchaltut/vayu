@@ -1,111 +1,58 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import Image from "next/image";
-
-interface DailyWeather {
-  day: string;
-  temp: number;
-  icon: string;
-}
+import { useI18n } from "@/lib/i18n";
+import type { DailyWeather } from "@/lib/vayuData";
+import { weatherIcon, weatherText, weekday } from "@/lib/weatherUi";
 
 interface WeeklyForecastProps {
-  lat?: number;
-  lon?: number;
+  days: DailyWeather[];
+  label?: string;
 }
 
-function getWeatherIcon(code: number): string {
-  if (code === 0 || code === 1 || code === 2 || code === 3) {
-    return "/assets/SunCloud.png";
-  }
-  if (code >= 51 && code <= 67) {
-    return "/assets/RainCloud.png";
-  }
-  if (code >= 71 && code <= 77) {
-    return "/assets/SnowCloud.png";
-  }
-  if (code >= 80 && code <= 82) {
-    return "/assets/RainCloud.png";
-  }
-  if (code >= 95 && code <= 99) {
-    return "/assets/ThunderCloud.png";
-  }
-  return "/assets/SunCloud.png"; // default
-}
-
-export default function WeeklyForecast({
-  lat = 22.5726,
-  lon = 88.3639,
-}: WeeklyForecastProps) {
-  const [forecast, setForecast] = useState<DailyWeather[]>([
-    { day: "Mon", temp: 30, icon: "/assets/SunCloud.png" },
-    { day: "Tue", temp: 29, icon: "/assets/RainCloud.png" },
-    { day: "Wed", temp: 28, icon: "/assets/SunCloud.png" },
-    { day: "Thu", temp: 29, icon: "/assets/RainCloud.png" },
-    { day: "Fri", temp: 28, icon: "/assets/ThunderCloud.png" },
-  ]);
-
-  useEffect(() => {
-    // Fetch live 5-day daily forecast based on real satellite-meteorology models
-    fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,weather_code&timezone=Asia/Kolkata`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        const daily = data?.daily;
-        if (!daily?.time) return;
-
-        const mapped: DailyWeather[] = daily.time.slice(1, 6).map((timeStr: string, index: number) => {
-          const date = new Date(timeStr);
-          const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-          const temp = Math.round(daily.temperature_2m_max[index + 1]);
-          const weatherCode = daily.weather_code[index + 1];
-
-          return {
-            day: dayName,
-            temp,
-            icon: getWeatherIcon(weatherCode),
-          };
-        });
-
-        setForecast(mapped);
-      })
-      .catch((err) => {
-        console.error("Failed to load satellite forecast", err);
-      });
-  }, [lat, lon]);
+export default function WeeklyForecast({ days, label }: WeeklyForecastProps) {
+  const { lang, t } = useI18n();
+  const rows = days.length ? days : Array.from({ length: 5 }, () => null);
 
   return (
-    <div className="flex flex-col w-54">
-      {forecast.map((data) => (
-        <div key={data.day} className="flex items-center justify-between pt-2">
-          {/* Day */}
-          <span className="text-[28px] font-normal text-white w-15">
-            {data.day}
-          </span>
+    <div className="w-full md:w-auto">
+      {label && <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wider text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.22)] md:hidden">{label}</p>}
 
-          {/* Temperature with Celsius symbol */}
-          <div className="flex items-start">
-            <span className="text-[28px] font-normal text-white leading-none">
-              {data.temp}
-            </span>
-            <span className="text-[14px] font-normal text-white mt-1 ml-0.5">
-              °C
+      {/* Phone: five glass tiles side by side */}
+      <div className="grid grid-cols-5 gap-2 md:hidden">
+        {rows.map((d, i) => (
+          <div
+            key={d?.date ?? i}
+            className="flex flex-col items-center gap-1 rounded-2xl border border-white/30 bg-white/20 px-1 py-2.5 text-white backdrop-blur-md [text-shadow:0_1px_3px_rgba(0,0,0,0.22)]"
+          >
+            <span className="w-full truncate text-center text-[13px] font-semibold">{d ? weekday(d.date, lang.locale) : "—"}</span>
+            <div className="relative h-8 w-8">
+              {d && <Image src={weatherIcon(d.code)} alt={weatherText(d.code, t)} fill sizes="32px" className="object-contain" />}
+            </div>
+            <span className="text-[17px] font-semibold leading-none tabular-nums">
+              {d ? d.max : "--"}
+              <span className="align-top text-[10px]">°</span>
             </span>
           </div>
+        ))}
+      </div>
 
-          {/* Weather Icon */}
-          <div className="w-12 h-12 relative shrink-0">
-            <Image
-              src={data.icon}
-              alt={`${data.day} weather`}
-              fill
-              sizes="(max-width: 1024px) 32px, 48px"
-              className="object-contain"
-            />
+      {/* Tablet / desktop: vertical list */}
+      <div className="hidden w-48 flex-col md:flex lg:w-54">
+        {rows.map((d, i) => (
+          <div key={d?.date ?? i} className="flex items-center justify-between pt-2">
+            <span className="w-16 truncate text-[22px] font-normal text-white lg:text-[28px]">
+              {d ? weekday(d.date, lang.locale) : "—"}
+            </span>
+            <div className="flex items-start">
+              <span className="text-[22px] font-normal leading-none text-white tabular-nums lg:text-[28px]">{d ? d.max : "--"}</span>
+              <span className="ml-0.5 mt-1 text-[12px] font-normal text-white lg:text-[14px]">°C</span>
+            </div>
+            <div className="relative h-10 w-10 shrink-0 lg:h-12 lg:w-12">
+              {d && <Image src={weatherIcon(d.code)} alt={weatherText(d.code, t)} fill sizes="48px" className="object-contain" />}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,28 @@
+# VAYU
+
+> VAYU is a neighbourhood-level air pollution hotspot map for Kolkata and India. It combines citizen photo reports, Arduino IoT air sensors and satellite air-quality data (Copernicus CAMS via Open-Meteo), and uses Google Gemini AI to detect pollution hotspots street by street and alert municipal teams. Built by team Doomsday for the Google Cloud hackathon (Track 2: CleanAir & Clear Streets).
+
+- Website: https://vayuai.vercel.app
+- Live hotspot map: https://vayuai.vercel.app/map
+- Source code: https://github.com/chanchaltut/vayu
+- Area: Kolkata, Salt Lake (Bidhannagar), Bhowanipore and Howrah, West Bengal; live AQI and weather work for any location in India
+- Languages: English, Hindi, Bengali, Odia, Gujarati, Marathi, Tamil, Telugu, Malayalam, Kannada, Punjabi, Assamese
+
+## What you can do on VAYU
+
+- [Check current AQI and weather](https://vayuai.vercel.app/#home): live US AQI, temperature and a 5-day forecast for your location
+- [Report pollution](https://vayuai.vercel.app/#report): upload a photo of smoke, burning waste or dust; Gemini Vision rates its severity
+- [Detect and predict](https://vayuai.vercel.app/#detect): AI hotspot detection, hotspot map, past and next-24-hour AQI
+- [Act](https://vayuai.vercel.app/#act): confirmed hotspots with location, recommended action and SMS/WhatsApp dispatch to field teams
+- [FAQ](https://vayuai.vercel.app/#faq)
+
+## Team Doomsday
+
+- Chanchal Pradhan — Backend Developer (https://github.com/chanchaltut)
+- Partha Biswas — UI/UX Designer & Hardware Engineer (https://github.com/parttha06)
+- Ankit Gupta — Frontend Developer (https://github.com/ankitgupta74)
+- Sumit Mandi — ML Engineer (https://github.com/verticeop)
+
+## More
+
+- [Full details for language models](https://vayuai.vercel.app/llms-full.txt)

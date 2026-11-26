@@ -1,25 +1,17 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import LanguageToggle from "@/components/buttons/LanguageToggle";
 import AqiCard from "@/components/cards/AqiCard";
 import WeeklyForecast from "@/components/cards/WeeklyForecast";
 import CurrentTemp from "@/components/temperature/CurrentTemp";
 import CloudLogo from "@/components/texts/CloudLogo";
 import HeroGreeting from "@/components/texts/HeroGreeting";
+import { useI18n } from "@/lib/i18n";
+import { useVayuData } from "@/lib/vayuData";
+import { aqiKey, themeKeyFor, weatherText, type ThemeKey } from "@/lib/weatherUi";
 
-interface Coords {
-  lat: number;
-  lon: number;
-}
-
-interface WeatherTheme {
-  bg: string;
-  grid: string;
-  illustration: string;
-}
-
-const THEMES: Record<string, WeatherTheme> = {
+const THEMES: Record<ThemeKey, { bg: string; grid: string; illustration: string }> = {
   clear: {
     bg: "linear-gradient(117.3deg, rgba(252, 140, 60, 0.8) 9.06%, rgba(255, 196, 142, 0.75) 31.05%, rgba(253, 223, 183, 0.8) 47.47%, rgba(228, 181, 137, 0.85) 64.62%, rgba(252, 140, 60, 0.9) 93.42%)",
     grid: "rgba(255, 142, 61, 0.35)",
@@ -42,293 +34,119 @@ const THEMES: Record<string, WeatherTheme> = {
   },
 };
 
-function getThemeKey(code: number): string {
-  if (code === 0 || code === 1 || code === 2 || code === 3) {
-    return "clear";
-  }
-  if (code >= 51 && code <= 67) {
-    return "rainy";
-  }
-  if (code >= 71 && code <= 77) {
-    return "snowy";
-  }
-  if (code >= 80 && code <= 82) {
-    return "rainy";
-  }
-  if (code >= 95 && code <= 99) {
-    return "stormy";
-  }
-  return "clear"; // default
-}
+// Decorative glowing squares. `m` marks the few that stay on phones.
+const SPARKS: { c: string; m?: boolean; d: string }[] = [
+  { c: "top-20 left-30 w-10 h-10 bg-white/30", d: "0s" },
+  { c: "top-41 left-21 w-8 h-8 bg-white/20", d: "0.2s" },
+  { c: "top-60 left-50 w-10 h-10 bg-white/25", d: "0.4s" },
+  { c: "top-42 left-72 w-6 h-6 bg-white/15", d: "0.6s" },
+  { c: "top-80 left-10 w-10 h-10 bg-white/20", d: "0.8s" },
+  { c: "top-91 left-51 w-8 h-8 bg-white/15", d: "0s" },
+  { c: "top-21 left-115 w-8 h-8 bg-white/20", d: "0.2s" },
+  { c: "top-11 right-21 w-8 h-8 bg-white/25", d: "0.4s" },
+  { c: "top-30 right-50 w-10 h-10 bg-white/20", d: "0.6s" },
+  { c: "top-50 right-10 w-10 h-10 bg-white/25", d: "0.8s" },
+  { c: "top-72 right-42 w-6 h-6 bg-white/15", d: "0s" },
+  { c: "top-91 right-71 w-8 h-8 bg-white/15", d: "0.2s" },
+  { c: "top-[30%] left-[8%] w-6 h-6 bg-white/25", m: true, d: "0.3s" },
+  { c: "top-[46%] right-[6%] w-8 h-8 bg-white/20", m: true, d: "0.7s" },
+  { c: "top-[62%] left-[40%] w-5 h-5 bg-white/20", m: true, d: "0.1s" },
+  { c: "top-[12%] left-[52%] w-5 h-5 bg-white/25", m: true, d: "0.5s" },
+];
 
-function getWeatherDescription(code: number): string {
-  if (code === 0) return "clear sky";
-  if (code === 1 || code === 2 || code === 3) return "mainly clear and partly cloudy";
-  if (code === 45 || code === 48) return "foggy conditions";
-  if (code >= 51 && code <= 55) return "light to moderate drizzle";
-  if (code >= 61 && code <= 65) return "occasional rain showers";
-  if (code >= 71 && code <= 77) return "light snow flurries";
-  if (code >= 80 && code <= 82) return "violent rain showers";
-  if (code >= 95 && code <= 99) return "thunderstorms and unstable weather";
-  return "partly cloudy";
+const noopSubscribe = () => () => {};
+function partOfDay(): "morning" | "afternoon" | "evening" | "night" {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "morning";
+  if (h >= 12 && h < 17) return "afternoon";
+  if (h >= 17 && h < 21) return "evening";
+  return "night";
 }
-
-// Reverse geocodes coordinates to a localized name
-const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
-    );
-    const data = await res.json();
-    const addr = data?.address;
-    const place =
-      addr?.suburb ||
-      addr?.town ||
-      addr?.village ||
-      addr?.city_district ||
-      addr?.city ||
-      addr?.county ||
-      addr?.state ||
-      "India";
-    return `${place}, India`;
-  } catch (e) {
-    return "Kolkata, India";
-  }
-};
 
 export default function Hero() {
-  const [temperature, setTemperature] = useState(27);
-  const [aqi, setAqi] = useState(30);
-  const [aqiLabel, setAqiLabel] = useState("Air quality data loading...");
-  const [weatherDesc, setWeatherDesc] = useState("mainly clear and partly cloudy");
-  
-  // Theme key state to drive smooth background layers transitions
-  const [themeKey, setThemeKey] = useState<string>("clear");
-  const [activeTheme, setActiveTheme] = useState<WeatherTheme>(THEMES.clear);
+  const { t } = useI18n();
+  const { place, temperature, weatherCode, aqi, daily, locating, requestPreciseLocation } = useVayuData();
+  // Server renders "morning"; the client swaps in its own clock after hydration.
+  const part = useSyncExternalStore(noopSubscribe, partOfDay, () => "morning" as const);
 
-  // Geolocation states
-  const [coords, setCoords] = useState<Coords>({ lat: 22.5726, lon: 88.3639 });
-  const [locationName, setLocationName] = useState("Detecting location...");
-  const [greeting, setGreeting] = useState({ line1: "Good", line2: "Morning" });
+  const themeKey = themeKeyFor(weatherCode);
+  const theme = THEMES[themeKey];
+  const desc = weatherCode != null ? `${weatherText(weatherCode, t)} · ${t.hero.today}` : "";
+  const aqiTitle = aqi != null ? t.aqi[aqiKey(aqi)] : t.hero.aqiLoading;
 
-  // 1. Calculate time-of-day greeting
-  useEffect(() => {
-    const hrs = new Date().getHours();
-    if (hrs >= 5 && hrs < 12) {
-      setGreeting({ line1: "Good", line2: "Morning" });
-    } else if (hrs >= 12 && hrs < 17) {
-      setGreeting({ line1: "Good", line2: "Afternoon" });
-    } else if (hrs >= 17 && hrs < 21) {
-      setGreeting({ line1: "Good", line2: "Evening" });
-    } else {
-      setGreeting({ line1: "Good", line2: "Night" });
-    }
-  }, []);
-
-  // 2. Geolocation cascade with automatic reverse-geocoding for hardware/cache coords
-  useEffect(() => {
-    const resolveLocation = async () => {
-      // Priority 1: IP Geolocation (via ipapi.co)
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        const data = await res.json();
-        if (data.latitude && data.longitude) {
-          const lat = data.latitude;
-          const lon = data.longitude;
-          setCoords({ lat, lon });
-          setLocationName(`${data.city || "Kalyani"}, ${data.country_name || "India"}`);
-          return;
-        }
-      } catch (e) {
-        console.error("IP Geolocation failed, trying fallback cascade:", e);
-      }
-
-      // Priority 2: Check local storage for last uploaded photo coordinates
-      const cachedCoords = localStorage.getItem("vayu_last_upload_coords");
-      if (cachedCoords) {
-        try {
-          const parsed = JSON.parse(cachedCoords);
-          if (parsed.lat && parsed.lon) {
-            setCoords({ lat: parsed.lat, lon: parsed.lon });
-            const name = await reverseGeocode(parsed.lat, parsed.lon);
-            setLocationName(name);
-            return;
-          }
-        } catch (e) {}
-      }
-
-      // Priority 3: Fetch latest hardware coordinates from API
-      try {
-        const res = await fetch("/api/sensors");
-        const json = await res.json();
-        const latest = json?.data?.readings?.[0];
-        if (latest && latest.lat && latest.lon) {
-          setCoords({ lat: latest.lat, lon: latest.lon });
-          const name = await reverseGeocode(latest.lat, latest.lon);
-          setLocationName(name);
-          return;
-        }
-      } catch (e) {}
-
-      // Priority 4: Browser geolocation with High Accuracy
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            setCoords({ lat, lon });
-            const name = await reverseGeocode(lat, lon);
-            setLocationName(name);
-          },
-          () => {
-            // Default final fallback
-            setLocationName("Kolkata, India");
-            setCoords({ lat: 22.5726, lon: 88.3639 });
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0
-          }
-        );
-      } else {
-        setLocationName("Kolkata, India");
-        setCoords({ lat: 22.5726, lon: 88.3639 });
-      }
-    };
-
-    resolveLocation();
-  }, []);
-
-  // 3. Fetch real meteorological data & map climate visual themes
-  useEffect(() => {
-    const fetchWeatherAndAqi = async () => {
-      try {
-        // Fetch weather
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,weather_code`;
-        const weatherRes = await fetch(weatherUrl);
-        const weatherJson = await weatherRes.json();
-        
-        if (weatherJson?.current?.temperature_2m != null) {
-          setTemperature(Math.round(weatherJson.current.temperature_2m));
-        }
-        if (weatherJson?.current?.weather_code != null) {
-          const code = weatherJson.current.weather_code;
-          setWeatherDesc(`${getWeatherDescription(code)} (Today)`);
-          
-          // Select visual weather template dynamically
-          const tKey = getThemeKey(code);
-          setThemeKey(tKey);
-          setActiveTheme(THEMES[tKey]);
-        }
-
-        // Fetch satellite-derived Air Quality
-        const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&current=us_aqi`;
-        const aqRes = await fetch(aqUrl);
-        const aqJson = await aqRes.json();
-        const liveAqi = aqJson?.current?.us_aqi;
-        
-        if (liveAqi != null) {
-          setAqi(liveAqi);
-          setAqiLabel(
-            liveAqi <= 50 ? "Good air quality" :
-              liveAqi <= 100 ? "Satisfactory air quality" :
-                liveAqi <= 200 ? "Moderate air quality" :
-                  liveAqi <= 300 ? "Poor — harmful for sensitive groups" :
-                    liveAqi <= 400 ? "Very poor — harmful for your body" :
-                      "Severe — hazardous"
-          );
-        }
-      } catch (err) {
-        console.error("Failed to load location parameters", err);
-      }
-    };
-
-    fetchWeatherAndAqi();
-  }, [coords]);
+  const illustration = (cls: string) => (
+    <Image
+      src={theme.illustration}
+      alt={t.hero.illustration}
+      width={379}
+      height={285}
+      priority
+      className={`h-auto object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] transition-all duration-1000 animate-float ${cls}`}
+    />
+  );
 
   return (
-    <section 
-      className="relative min-h-screen w-full overflow-hidden flex flex-col"
-      style={{
-        "--grid-color": activeTheme.grid,
-      } as React.CSSProperties}
+    <section
+      id="home"
+      className="relative flex min-h-[100svh] w-full flex-col overflow-hidden"
+      style={{ "--grid-color": theme.grid } as React.CSSProperties}
     >
-      {/* Absolute background layers with hardware-accelerated transitions to bypass linear-gradient limitation */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-1000 ${
-          themeKey === "clear" ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ background: THEMES.clear.bg }}
-      />
-      <div
-        className={`absolute inset-0 transition-opacity duration-1000 ${
-          themeKey === "rainy" ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ background: THEMES.rainy.bg }}
-      />
-      <div
-        className={`absolute inset-0 transition-opacity duration-1000 ${
-          themeKey === "stormy" ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ background: THEMES.stormy.bg }}
-      />
-      <div
-        className={`absolute inset-0 transition-opacity duration-1000 ${
-          themeKey === "snowy" ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ background: THEMES.snowy.bg }}
-      />
-
-      {/* Grid Pattern Overlay */}
-      <div className="absolute inset-0 bg-grid-pattern pointer-events-none" />
-
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-20 left-30 w-10 h-10 bg-white/30 backdrop-blur-sm shadow-[0_0_20px_4px_rgba(255,255,255,0.4)] animate-twinkle" style={{ animationDelay: "0s" }}></div>
-        <div className="absolute top-41 left-21 w-8 h-8 bg-white/20 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle" style={{ animationDelay: "0.2s" }}></div>
-        <div className="absolute top-60 left-50 w-10 h-10 bg-white/25 shadow-[0_0_16px_3px_rgba(255,255,255,0.35)] animate-twinkle" style={{ animationDelay: "0.4s" }}></div>
-        <div className="absolute top-42 left-72 w-6 h-6 bg-white/15 shadow-[0_0_10px_2px_rgba(255,255,255,0.25)] animate-twinkle" style={{ animationDelay: "0.6s" }}></div>
-        <div className="absolute top-80 left-10 w-10 h-10 bg-white/20 shadow-[0_0_16px_3px_rgba(255,255,255,0.3)] animate-twinkle" style={{ animationDelay: "0.8s" }}></div>
-        <div className="absolute top-91 left-51 w-8 h-8 bg-white/15 shadow-[0_0_12px_2px_rgba(255,255,255,0.25)] animate-twinkle" style={{ animationDelay: "0s" }}></div>
-        <div className="absolute top-21 left-115 -translate-x-1/2 w-8 h-8 bg-white/20 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle" style={{ animationDelay: "0.2s" }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white/10 shadow-[0_0_10px_2px_rgba(255,255,255,0.2)]"></div>
-        <div className="absolute top-11 right-21 w-8 h-8 bg-white/25 shadow-[0_0_14px_3px_rgba(255,255,255,0.3)] animate-twinkle" style={{ animationDelay: "0.4s" }}></div>
-        <div className="absolute top-30 right-50 w-10 h-10 bg-white/20 shadow-[0_0_16px_3px_rgba(255,255,255,0.3)] animate-twinkle" style={{ animationDelay: "0.6s" }}></div>
-        <div className="absolute top-50 right-10 w-10 h-10 bg-white/25 shadow-[0_0_16px_3px_rgba(255,255,255,0.35)] animate-twinkle" style={{ animationDelay: "0.8s" }}></div>
-        <div className="absolute top-72 right-42 w-6 h-6 bg-white/15 shadow-[0_0_10px_2px_rgba(255,255,255,0.25)] animate-twinkle" style={{ animationDelay: "0s" }}></div>
-        <div className="absolute top-91 right-71 w-8 h-8 bg-white/15 shadow-[0_0_12px_2px_rgba(255,255,255,0.25)] animate-twinkle" style={{ animationDelay: "0.2s" }}></div>
+      {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
+        <div
+          key={k}
+          aria-hidden
+          className={`absolute inset-0 transition-opacity duration-1000 ${themeKey === k ? "opacity-100" : "opacity-0"}`}
+          style={{ background: THEMES[k].bg }}
+        />
+      ))}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid-pattern" />
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {SPARKS.map((s, i) => (
+          <div
+            key={i}
+            className={`absolute shadow-[0_0_16px_3px_rgba(255,255,255,0.3)] animate-twinkle ${s.c} ${s.m ? "md:hidden" : "hidden md:block"}`}
+            style={{ animationDelay: s.d }}
+          />
+        ))}
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col justify-between w-full max-w-8xl mx-auto p-10 lg:p-16">
-        {/* TOP HALF */}
-        <div className="flex flex-col gap-12">
-          <div className="w-full flex justify-between items-center h-16 relative z-20">
-            <div className="w-37 -mt-26 flex justify-start"><LanguageToggle /></div>
-            <div className="flex-1"></div>
-            <div className="w-37 -mt-16 flex justify-end"><CloudLogo /></div>
-          </div>
-          <div className="w-full flex justify-between relative z-10">
-            <HeroGreeting line1={greeting.line1} line2={greeting.line2} location={locationName} />
-            <CurrentTemp temperature={temperature} description={weatherDesc} />
-          </div>
+      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-5 pb-28 pt-[max(env(safe-area-inset-top),20px)] sm:px-8 md:px-10 md:pb-10 md:pt-6 lg:px-16 lg:pb-16">
+        {/* Top bar: language + brand mark */}
+        <div className="relative z-20 flex items-center justify-between md:items-start">
+          <LanguageToggle />
+          <CloudLogo />
         </div>
 
-        {/* --- CENTER FLOAT: Climate Illustration --- */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <Image
-            src={activeTheme.illustration}
-            alt="Climate Illustration"
-            width={379}
-            height={285}
-            className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-94 h-auto transition-all duration-1000 animate-float"
-            priority
+        {/* Greeting + current conditions */}
+        <div className="relative mt-8 flex flex-col gap-8 md:mt-14 md:flex-row md:items-start md:justify-between lg:mt-12">
+          <HeroGreeting
+            line1={t.hero.good}
+            line2={t.hero[part]}
+            location={place ?? t.hero.detecting}
+            onLocate={requestPreciseLocation}
+            locating={locating}
+            locateLabel={t.hero.useMyLocation}
+            locatingLabel={t.hero.locating}
           />
+
+          <div className="relative">
+            <CurrentTemp temperature={temperature} description={desc} />
+            {/* Phone: the illustration tucks into the corner beside the temperature */}
+            <div className="pointer-events-none absolute -right-2 -top-14 w-[46%] max-w-52 xs:-top-16 md:hidden">
+              {illustration("w-full")}
+            </div>
+          </div>
         </div>
 
-        {/* BOTTOM HALF */}
-        <div className="w-full flex justify-between items-end">
-          <AqiCard title={aqiLabel} aqiValue={aqi} />
-          <WeeklyForecast lat={coords.lat} lon={coords.lon} />
+        {/* Tablet / desktop: illustration floats in the middle of the hero */}
+        <div className="pointer-events-none absolute inset-0 hidden items-center justify-center md:flex">
+          {illustration("w-60 lg:w-80 xl:w-94")}
+        </div>
+
+        {/* Air quality + forecast */}
+        <div className="relative mt-auto flex flex-col gap-4 pt-10 md:flex-row md:items-end md:justify-between md:gap-8">
+          <AqiCard title={aqiTitle} aqiValue={aqi} label={t.hero.currentAqi} />
+          <WeeklyForecast days={daily.slice(1, 6)} label={t.hero.forecast} />
         </div>
       </div>
     </section>
