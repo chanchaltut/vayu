@@ -194,7 +194,7 @@ export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: Hots
 
       <div className="relative min-h-[300px] flex-1 p-3 sm:px-4">
         {failed ? (
-          <div className="relative h-full min-h-[276px] overflow-hidden rounded-2xl">
+          <div key="osm" className="relative h-full min-h-[276px] overflow-hidden rounded-2xl">
             <iframe title={t.detect.mapTitle} src={osm} className="absolute inset-0 h-full w-full border-0" loading="lazy" />
             {hotspots.length > 0 && (
               <ul className="no-scrollbar absolute inset-x-2 bottom-2 flex gap-2 overflow-x-auto">
@@ -215,7 +215,8 @@ export default function HotspotsMapCard({ hotspots, centerLat, centerLon }: Hots
             )}
           </div>
         ) : (
-          <div ref={mapRef} className="h-full min-h-[276px] w-full overflow-hidden rounded-2xl bg-[#EDEDED]" />
+          // Separate keys so React never reuses the Google node (and anything Google injected into it).
+          <div key="gmap" ref={mapRef} className="h-full min-h-[276px] w-full overflow-hidden rounded-2xl bg-[#EDEDED]" />
         )}
         {!failed && hotspots.length === 0 && ready && (
           <span className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-3 py-1.5 text-[12.5px] font-semibold text-[#595959] shadow-md">
